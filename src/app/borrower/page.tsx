@@ -2,100 +2,57 @@
 
 import { useEffect, useState } from 'react';
 import './borrower.css';
-
-// Data
-const borrowerData = {
-  id: 1,
-  name: "Arjun Singh",
-  collegeName: "SIU Nagpur",
-  collegeYear: 3,
-  creditScore: 780,
-  trustBadge: "verified",
-  currentBalance: "₹15,400",
-  reputation: "Excellent",
-  emergencyCreditAvailable: "₹800"
-};
-
-const lendersData = [
-  {
-    id: 1,
-    name: "Priya Patel",
-    collegeName: "SIU Nagpur",
-    collegeYear: 4,
-    branch: "Engineering",
-    matchPercentage: 92,
-    riskTolerance: "Medium",
-    interestRate: "8%",
-    trustBadge: true,
-    profileImage: "PP"
-  },
-  {
-    id: 2,
-    name: "Rahul Gupta",
-    collegeName: "SIU Nagpur",
-    collegeYear: 3,
-    branch: "CSE",
-    matchPercentage: 88,
-    riskTolerance: "Low",
-    interestRate: "6%",
-    trustBadge: true,
-    profileImage: "RG"
-  },
-  {
-    id: 3,
-    name: "Anonymous Lender #4521",
-    matchPercentage: 85,
-    riskTolerance: "High",
-    interestRate: "12%",
-    trustBadge: false,
-    profileImage: "AL"
-  }
-];
-
-const activeLoansData = [
-  {
-    id: 1,
-    lenderName: "Ananya Sharma",
-    amount: "₹5,000",
-    remaining: "₹2,400",
-    interestRate: "7%",
-    nextDueDate: "2025-11-15",
-    status: "active",
-    progressPercent: 52,
-    dueAmount: "₹500"
-  },
-  {
-    id: 2,
-    lenderName: "Anonymous Lender",
-    amount: "₹2,000",
-    remaining: "₹800",
-    interestRate: "5%",
-    nextDueDate: "2025-11-20",
-    status: "active",
-    progressPercent: 60,
-    dueAmount: "₹250"
-  }
-];
+import { trpc } from '../../utils/trpc';
 
 export default function BorrowerDashboard() {
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [lenders] = useState(lendersData);
-  const [activeLoans] = useState(activeLoansData);
+
+  // tRPC queries
+  const borrowerProfile = trpc.borrower.getProfile.useQuery();
+  const lenders = trpc.borrower.getLenders.useQuery();
+  const activeLoans = trpc.borrower.getActiveLoans.useQuery();
+
+  // tRPC mutations
+  const requestLoanMutation = trpc.borrower.requestLoan.useMutation();
+  const makePaymentMutation = trpc.borrower.makePayment.useMutation();
+
+  // tRPC subscription (handled separately)
+  const loanUpdates = trpc.borrower.onLoanUpdate.useSubscription();
+
+  const borrowerData = borrowerProfile.data;
 
   useEffect(() => {
     // Initialize credit score animation
-    animateCreditScore();
-  }, []);
+    const animateCreditScore = () => {
+      if (!borrowerData) return;
+      const circle = document.getElementById('scoreCircle');
+      if (circle) {
+        const circumference = 2 * Math.PI * 80;
+        const offset = circumference - (borrowerData.creditScore / 1000) * circumference;
+        circle.style.strokeDasharray = `${circumference}`;
+        circle.style.strokeDashoffset = `${offset}`;
+      }
+    };
 
-  const animateCreditScore = () => {
-    const circle = document.getElementById('scoreCircle');
-    if (circle) {
-      const circumference = 2 * Math.PI * 80;
-      const offset = circumference - (borrowerData.creditScore / 1000) * circumference;
-      circle.style.strokeDasharray = `${circumference}`;
-      circle.style.strokeDashoffset = `${offset}`;
+    if (borrowerData) {
+      animateCreditScore();
     }
-  };
+  }, [borrowerData]);
+
+  useEffect(() => {
+    if (loanUpdates.data && !loanUpdates.error) {
+      // Refetch loans when loan updates are received
+      activeLoans.refetch();
+    }
+  }, [loanUpdates.data, loanUpdates.error]);
+
+  // Handle subscription errors separately
+  useEffect(() => {
+    if (loanUpdates.error) {
+      console.error('Subscription error:', loanUpdates.error);
+      // Could show a toast or notification here instead of blocking the page
+    }
+  }, [loanUpdates.error]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
@@ -104,6 +61,18 @@ export default function BorrowerDashboard() {
       year: 'numeric'
     });
   };
+
+  if (borrowerProfile.isLoading || lenders.isLoading || activeLoans.isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (borrowerProfile.error || lenders.error || activeLoans.error) {
+    return <div>Error loading data: {borrowerProfile.error?.message || lenders.error?.message || activeLoans.error?.message}</div>;
+  }
+
+  if (!borrowerData) {
+    return <div>No borrower data</div>;
+  }
 
   return (
     <>
@@ -136,10 +105,10 @@ export default function BorrowerDashboard() {
         {/* Welcome Section */}
         <section className="welcome-section">
           <div className="welcome-text">
-            <h1>Welcome back, <span className="highlight">{borrowerData.name}</span></h1>
+            <h1>Welcome back, <span className="highlight">{borrowerData?.name}</span></h1>
             <div className="trust-badge-display">
               <span className="badge verified">✓ Verified User</span>
-              <span className="college-info">{borrowerData.collegeName} | Year {borrowerData.collegeYear}</span>
+              <span className="college-info">{borrowerData?.collegeName} | Year {borrowerData?.collegeYear}</span>
             </div>
           </div>
         </section>
@@ -150,28 +119,28 @@ export default function BorrowerDashboard() {
             <div className="stat-icon">💰</div>
             <div className="stat-content">
               <div className="stat-label">Current Balance</div>
-              <div className="stat-value">{borrowerData.currentBalance}</div>
+              <div className="stat-value">{borrowerData?.currentBalance}</div>
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-icon">⭐</div>
             <div className="stat-content">
               <div className="stat-label">Credit Score</div>
-              <div className="stat-value credit-score">{borrowerData.creditScore}</div>
+              <div className="stat-value credit-score">{borrowerData?.creditScore}</div>
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-icon">🏆</div>
             <div className="stat-content">
               <div className="stat-label">Reputation</div>
-              <div className="stat-value">{borrowerData.reputation}</div>
+              <div className="stat-value">{borrowerData?.reputation}</div>
             </div>
           </div>
           <div className="stat-card emergency">
             <div className="stat-icon">🚨</div>
             <div className="stat-content">
               <div className="stat-label">Emergency Credit</div>
-              <div className="stat-value">{borrowerData.emergencyCreditAvailable}</div>
+              <div className="stat-value">{borrowerData?.emergencyCreditAvailable}</div>
             </div>
           </div>
         </section>
@@ -204,8 +173,8 @@ export default function BorrowerDashboard() {
                     </div>
                   </div>
                 </div>
-                <button 
-                  className="btn btn-primary" 
+                <button
+                  className="btn btn-primary"
                   id="requestEmergencyBtn"
                 >
                   Request Emergency Loan
@@ -238,13 +207,13 @@ export default function BorrowerDashboard() {
             </div>
             <div className="card-body">
               <div className="lenders-grid" id="lendersGrid">
-                {lenders.map(lender => (
+                {lenders.data?.map((lender: any) => (
                   <div key={lender.id} className="lender-card">
                     <div className="match-score">{lender.matchPercentage}% Match</div>
                     <div className="lender-header">
                       <div className="lender-avatar">{lender.profileImage}</div>
                       <div className="lender-info">
-                        <h3>{lender.name}{lender.trustBadge && <span style={{color: '#4caf50', marginLeft: '0.5rem'}}>✓</span>}</h3>
+                        <h3>{lender.name}{lender.trustBadge && <span style={{ color: '#4caf50', marginLeft: '0.5rem' }}>✓</span>}</h3>
                         <div className="lender-meta">
                           {lender.collegeName ? lender.collegeName + ' | ' : ''}
                           {lender.branch ? lender.branch : ''}
@@ -262,7 +231,10 @@ export default function BorrowerDashboard() {
                         <span className="detail-value">{lender.interestRate}</span>
                       </div>
                     </div>
-                    <button className="btn btn-primary btn-full" onClick={() => console.log('Request loan from', lender.id)}>
+                    <button
+                      className="btn btn-primary btn-full"
+                      onClick={() => requestLoanMutation.mutate({ lenderId: lender.id, amount: 2000 })}
+                    >
                       Request Loan
                     </button>
                   </div>
@@ -346,7 +318,7 @@ export default function BorrowerDashboard() {
             </div>
             <div className="card-body">
               <div className="loans-list" id="activeLoansContainer">
-                {activeLoans.map(loan => (
+                {activeLoans.data?.map((loan: any) => (
                   <div key={loan.id} className="loan-card">
                     <div className="loan-header">
                       <div className="loan-lender">{loan.lenderName}</div>
@@ -376,10 +348,13 @@ export default function BorrowerDashboard() {
                         <span>{loan.progressPercent}%</span>
                       </div>
                       <div className="progress-bar-container">
-                        <div className="progress-bar-fill" style={{width: `${loan.progressPercent}%`}}></div>
+                        <div className="progress-bar-fill" style={{ width: `${loan.progressPercent}%` }}></div>
                       </div>
                     </div>
-                    <button className="btn btn-primary" onClick={() => console.log('Make payment for loan', loan.id)}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => makePaymentMutation.mutate({ loanId: loan.id, amount: parseInt(loan.dueAmount.replace('₹', '')) })}
+                    >
                       Pay {loan.dueAmount}
                     </button>
                   </div>
@@ -417,7 +392,7 @@ export default function BorrowerDashboard() {
                       <span>95%</span>
                     </div>
                     <div className="progress-bar">
-                      <div className="progress-fill" style={{width: '95%'}}></div>
+                      <div className="progress-fill" style={{ width: '95%' }}></div>
                     </div>
                   </div>
                   <div className="breakdown-item">
@@ -426,7 +401,7 @@ export default function BorrowerDashboard() {
                       <span>88%</span>
                     </div>
                     <div className="progress-bar">
-                      <div className="progress-fill" style={{width: '88%'}}></div>
+                      <div className="progress-fill" style={{ width: '88%' }}></div>
                     </div>
                   </div>
                   <div className="breakdown-item">
@@ -435,7 +410,7 @@ export default function BorrowerDashboard() {
                       <span>100%</span>
                     </div>
                     <div className="progress-bar">
-                      <div className="progress-fill" style={{width: '100%'}}></div>
+                      <div className="progress-fill" style={{ width: '100%' }}></div>
                     </div>
                   </div>
                   <div className="breakdown-item">
@@ -444,7 +419,7 @@ export default function BorrowerDashboard() {
                       <span>92%</span>
                     </div>
                     <div className="progress-bar">
-                      <div className="progress-fill" style={{width: '92%'}}></div>
+                      <div className="progress-fill" style={{ width: '92%' }}></div>
                     </div>
                   </div>
                 </div>

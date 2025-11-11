@@ -1,0 +1,66 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./database.sqlite"
+}
+
+model User {
+  id                    Int       @id @default(autoincrement())
+  name                  String
+  email                 String    @unique
+  collegeName           String
+  collegeYear           Int
+  creditScore           Int
+  trustBadge            Boolean
+  currentBalance        Int
+  reputation            String
+  emergencyCreditAvailable Int
+  role                  String    @default("borrower")
+
+  // Relations
+  loansAsBorrower       Loan[]    @relation("BorrowerLoans")
+  loansAsLender         Loan[]    @relation("LenderLoans")
+  transactions          Transaction[]
+
+  @@map("users")
+}
+
+model Loan {
+  id            Int       @id @default(autoincrement())
+  borrowerId    Int
+  lenderId      Int
+  amount        Int
+  remaining     Int
+  interestRate  Float
+  status        String
+  loanType      String
+  nextDueDate   DateTime
+  progressPercent Int
+  dueAmount     Int
+
+  // Relations
+  borrower      User      @relation("BorrowerLoans", fields: [borrowerId], references: [id])
+  lender        User      @relation("LenderLoans", fields: [lenderId], references: [id])
+
+  @@map("loans")
+}
+
+model Transaction {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  type        String
+  amount      Int
+  date        DateTime  @default(now())
+  positive    Boolean
+
+  // Relations
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@map("transactions")
+}

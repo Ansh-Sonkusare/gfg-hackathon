@@ -1,109 +1,47 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-// Data
-const lenderData = {
-  name: "Aditya",
-  email: "aditya.kumar@siu.edu.in",
-  college: "SIU Nagpur",
-  year: "3rd Year CSE",
-  trustScore: "750/1000",
-  riskTolerance: "Moderate",
-  defaultRate: "2.5%",
-  memberSince: "Oct 2025",
-  walletBalance: "₹5,200",
-  totalLent: "₹12,400",
-  activeLoans: 8,
-  defaultRatePercent: "2.5%",
-  monthlyEarnings: "₹540",
-  currentLevel: "Silver 🥈",
-  levelProgress: 150,
-  levelXP: 800,
-};
-
-const lenders = [
-  {
-    id: 1,
-    name: "Priya Patel",
-    college: "SIU Nagpur",
-    year: 3,
-    branch: "Engineering",
-    matchPercentage: 92,
-    riskTolerance: "Medium",
-    interestRate: "8%",
-    trustBadge: true,
-    profileImage: "PP",
-    amount: 2000,
-    duration: 14,
-    compatibility: 85,
-  },
-  {
-    id: 2,
-    name: "Rahul Gupta",
-    college: "SIU Nagpur",
-    year: 3,
-    branch: "CSE",
-    matchPercentage: 88,
-    riskTolerance: "Low",
-    interestRate: "6%",
-    trustBadge: true,
-    profileImage: "RG",
-    amount: 1500,
-    duration: 21,
-    compatibility: 78,
-  },
-];
-
-const activeLoans = [
-  {
-    id: 1,
-    borrower: "Ananya Sharma",
-    amount: "₹5,000",
-    interest: "7%",
-    dueDate: "2025-11-15",
-    status: "on-track",
-    earnings: "₹350",
-  },
-  {
-    id: 2,
-    borrower: "Vikram Singh",
-    amount: "₹3,000",
-    interest: "6%",
-    dueDate: "2025-11-20",
-    status: "on-track",
-    earnings: "₹180",
-  },
-];
-
-const transactions = [
-  {
-    type: "Interest Earned",
-    amount: "+₹540",
-    date: "Nov 01, 2025",
-    positive: true,
-  },
-  {
-    type: "Loan Funded",
-    amount: "-₹2,000",
-    date: "Oct 28, 2025",
-    positive: false,
-  },
-  {
-    type: "Principal Returned",
-    amount: "+₹1,500",
-    date: "Oct 25, 2025",
-    positive: true,
-  },
-];
+import { trpc } from "../../utils/trpc";
 
 export default function LenderDashboard() {
   const [currentPage, setCurrentPage] = useState("home");
-  const [filteredLenders, setFilteredLenders] = useState(lenders);
   const [riskFilter, setRiskFilter] = useState("all");
   const [amountFilter, setAmountFilter] = useState("all");
   const [durationFilter, setDurationFilter] = useState("all");
   const [collegeFilter, setCollegeFilter] = useState("all");
+
+  // tRPC queries
+  const lenderProfile = trpc.lender.getProfile.useQuery();
+  const borrowers = trpc.lender.getBorrowers.useQuery();
+  const activeLoans = trpc.lender.getActiveLoans.useQuery();
+  const transactions = trpc.lender.getTransactions.useQuery();
+
+  // tRPC mutations
+  const fundLoanMutation = trpc.lender.fundLoan.useMutation();
+
+  // tRPC subscription
+  const loanUpdates = trpc.lender.onLoanUpdate.useSubscription();
+
+  const lenderData = lenderProfile.data;
+
+  if (lenderProfile.isLoading || borrowers.isLoading || activeLoans.isLoading || transactions.isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (lenderProfile.error || borrowers.error || activeLoans.error || transactions.error) {
+    return <div>Error loading data</div>;
+  }
+
+  if (!lenderData) {
+    return <div>No lender data</div>;
+  }
+
+  useEffect(() => {
+    if (loanUpdates.data) {
+      // Refetch loans when loan updates are received
+      activeLoans.refetch();
+    }
+  }, [loanUpdates.data]);
 
   const updateStats = () => {
     // Stats are already in the data
@@ -122,29 +60,12 @@ export default function LenderDashboard() {
     // Badges are rendered in JSX
   };
 
-  const renderLendingHub = () => {
-    // Filter lenders based on criteria
-    let filtered = lenders;
-
-    if (riskFilter !== "all") {
-      filtered = filtered.filter(
-        (l) => l.riskTolerance.toLowerCase() === riskFilter,
-      );
-    }
-
-    if (amountFilter !== "all") {
-      const [min, max] = amountFilter.split("-").map((n) => parseInt(n));
-      filtered = filtered.filter((l) => l.amount >= min && l.amount <= max);
-    }
-
-    if (durationFilter !== "all") {
-      filtered = filtered.filter(
-        (l) => l.duration === parseInt(durationFilter),
-      );
-    }
-
-    setFilteredLenders(filtered);
-  };
+  const filteredBorrowers = trpc.lender.updateFilters.useQuery({
+    riskFilter,
+    amountFilter,
+    durationFilter,
+    collegeFilter,
+  });
 
   const renderActiveLoans = () => {
     // Loans are rendered in JSX
@@ -429,10 +350,7 @@ export default function LenderDashboard() {
               <select
                 id="riskFilter"
                 value={riskFilter}
-                onChange={(e) => {
-                  setRiskFilter(e.target.value);
-                  renderLendingHub();
-                }}
+                onChange={(e) => setRiskFilter(e.target.value)}
               >
                 <option value="all">All Risks</option>
                 <option value="low">Low Risk</option>
@@ -445,10 +363,7 @@ export default function LenderDashboard() {
               <select
                 id="amountFilter"
                 value={amountFilter}
-                onChange={(e) => {
-                  setAmountFilter(e.target.value);
-                  renderLendingHub();
-                }}
+                onChange={(e) => setAmountFilter(e.target.value)}
               >
                 <option value="all">All Amounts</option>
                 <option value="200-300">₹200 - ₹300</option>
@@ -461,10 +376,7 @@ export default function LenderDashboard() {
               <select
                 id="durationFilter"
                 value={durationFilter}
-                onChange={(e) => {
-                  setDurationFilter(e.target.value);
-                  renderLendingHub();
-                }}
+                onChange={(e) => setDurationFilter(e.target.value)}
               >
                 <option value="all">All Durations</option>
                 <option value="7">7 Days</option>
@@ -487,74 +399,74 @@ export default function LenderDashboard() {
           </div>
 
           <div className="borrowers-grid" id="borrowersContainer">
-            {filteredLenders.map((lender) => (
-              <div key={lender.id} className="borrower-card">
+            {filteredBorrowers.data?.map((borrower: any) => (
+              <div key={borrower.id} className="borrower-card">
                 <div className="borrower-header">
-                  <div className="borrower-avatar">{lender.profileImage}</div>
+                  <div className="borrower-avatar">{borrower.profileImage}</div>
                   <div className="borrower-info">
                     <h4>
-                      {lender.name}
-                      {lender.trustBadge && (
+                      {borrower.name}
+                      {borrower.trustBadge && (
                         <span className="verified-badge">✓ Verified</span>
                       )}
                     </h4>
                     <div className="borrower-meta">
-                      {lender.college} | Year {lender.year} {lender.branch}
+                      {borrower.college} | Year {borrower.year} {borrower.branch}
                     </div>
                   </div>
                 </div>
                 <div className="borrower-score">
                   <div className="score-badge">
-                    {lender.matchPercentage}% Match
+                    {borrower.matchPercentage}% Match
                   </div>
                   <div
-                    className={`risk-badge risk-${lender.riskTolerance.toLowerCase()}`}
+                    className={`risk-badge risk-${borrower.riskTolerance.toLowerCase()}`}
                   >
-                    {lender.riskTolerance} Risk
+                    {borrower.riskTolerance} Risk
                   </div>
                 </div>
                 <div className="borrower-details">
                   <div className="detail-item">
                     <span className="detail-label">Amount</span>
-                    <span className="detail-value">₹{lender.amount}</span>
+                    <span className="detail-value">₹{borrower.amount}</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">Duration</span>
-                    <span className="detail-value">{lender.duration} Days</span>
+                    <span className="detail-value">{borrower.duration} Days</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">Interest</span>
-                    <span className="detail-value">{lender.interestRate}</span>
+                    <span className="detail-value">{borrower.interestRate}</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">Compatibility</span>
                     <span className="detail-value">
-                      {lender.compatibility}%
+                      {borrower.compatibility}%
                     </span>
                   </div>
                 </div>
                 <div className="compatibility-bar">
                   <div className="compatibility-label">
                     <span>Compatibility</span>
-                    <span>{lender.compatibility}%</span>
+                    <span>{borrower.compatibility}%</span>
                   </div>
                   <div className="progress-bar">
                     <div
                       className="progress-fill"
-                      style={{ width: `${lender.compatibility}%` }}
+                      style={{ width: `${borrower.compatibility}%` }}
                     ></div>
                   </div>
                 </div>
                 <div className="borrower-actions">
                   <button
                     className="btn btn-small"
-                    onClick={() => console.log("View details for", lender.id)}
+                    onClick={() => console.log("View details for", borrower.id)}
                   >
                     View Details
                   </button>
                   <button
                     className="btn btn-primary btn-small"
-                    onClick={() => console.log("Fund loan for", lender.id)}
+                    onClick={() => fundLoanMutation.mutate({ borrowerId: borrower.id, amount: borrower.amount })}
                   >
                     Fund Loan
                   </button>
@@ -581,7 +493,7 @@ export default function LenderDashboard() {
               <div>Earnings</div>
             </div>
             <div id="loansContainer">
-              {activeLoans.map((loan) => (
+              {activeLoans.data?.map((loan: any) => (
                 <div key={loan.id} className="table-row">
                   <div>{loan.borrower}</div>
                   <div>{loan.amount}</div>
@@ -629,7 +541,7 @@ export default function LenderDashboard() {
 
           <h3 style={{ marginBottom: "20px" }}>Recent Transactions</h3>
           <div id="transactionsContainer">
-            {transactions.map((transaction, index) => (
+            {transactions.data?.map((transaction: any, index: number) => (
               <div key={index} className="transaction-item">
                 <div className="transaction-info">
                   <div className="transaction-type">{transaction.type}</div>
