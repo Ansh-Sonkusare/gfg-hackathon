@@ -14,6 +14,8 @@ model User {
   id                    Int       @id @default(autoincrement())
   name                  String
   email                 String    @unique
+  password              String
+  role                  String    @default("borrower")
   collegeName           String
   collegeYear           Int
   creditScore           Int
@@ -21,12 +23,16 @@ model User {
   currentBalance        Int
   reputation            String
   emergencyCreditAvailable Int
-  role                  String    @default("borrower")
+  riskTolerance         String    @default("Medium")
+  loanAmount            Int       @default(500)
+  loanDuration          Int       @default(14)
 
   // Relations
   loansAsBorrower       Loan[]    @relation("BorrowerLoans")
   loansAsLender         Loan[]    @relation("LenderLoans")
   transactions          Transaction[]
+  advertisements        LenderAdvertisement[]
+  paymentPlans          PaymentPlan[]
 
   @@map("users")
 }
@@ -34,7 +40,7 @@ model User {
 model Loan {
   id            Int       @id @default(autoincrement())
   borrowerId    Int
-  lenderId      Int
+  lenderId      Int?
   amount        Int
   remaining     Int
   interestRate  Float
@@ -46,9 +52,50 @@ model Loan {
 
   // Relations
   borrower      User      @relation("BorrowerLoans", fields: [borrowerId], references: [id])
-  lender        User      @relation("LenderLoans", fields: [lenderId], references: [id])
+  lender        User?     @relation("LenderLoans", fields: [lenderId], references: [id])
+  paymentPlans  PaymentPlan[]
 
   @@map("loans")
+}
+
+model LenderAdvertisement {
+  id            Int      @id @default(autoincrement())
+  lenderId      Int
+  minAmount     Int
+  maxAmount     Int
+  interestRate  Float
+  minDuration   Int
+  maxDuration   Int
+  riskTolerance String
+  targetAudience String
+  isActive      Boolean  @default(true)
+  priority      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  lender        User     @relation(fields: [lenderId], references: [id])
+
+  @@map("lender_advertisements")
+}
+
+model PaymentPlan {
+  id            Int      @id @default(autoincrement())
+  loanId        Int
+  userId        Int
+  frequency     String
+  amount        Int
+  isActive      Boolean  @default(true)
+  nextPaymentDate DateTime
+  endDate       DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  loan          Loan     @relation(fields: [loanId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@map("payment_plans")
 }
 
 model Transaction {

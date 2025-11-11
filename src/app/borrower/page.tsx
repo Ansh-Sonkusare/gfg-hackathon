@@ -1,58 +1,105 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import './borrower.css';
 import { trpc } from '../../utils/trpc';
+import { LenderWithAdvertisement } from '../../server/types';
 
 export default function BorrowerDashboard() {
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null);
+  const [showLoanModal, setShowLoanModal] = useState(false);
+  const [selectedLender, setSelectedLender] = useState<LenderWithAdvertisement | null>(null);
+  const [loanAmount, setLoanAmount] = useState('');
+  const [loanInterestRate, setLoanInterestRate] = useState('');
+  const [loanDuration, setLoanDuration] = useState(7);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
+  const [paymentFrequency, setPaymentFrequency] = useState('monthly');
+  const [numberOfInstallments, setNumberOfInstallments] = useState(1);
+  const [paymentAmount, setPaymentAmount] = useState('');
+
+  const router = useRouter();
+
+  // Check authentication
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      router.push('/login');
+      return;
+    }
+  }, [router]);
 
   // tRPC queries
   const borrowerProfile = trpc.borrower.getProfile.useQuery();
   const lenders = trpc.borrower.getLenders.useQuery();
   const activeLoans = trpc.borrower.getActiveLoans.useQuery();
 
-  // tRPC mutations
-  const requestLoanMutation = trpc.borrower.requestLoan.useMutation();
-  const makePaymentMutation = trpc.borrower.makePayment.useMutation();
+  // tRPC subscriptions
+  const balanceUpdate = trpc.borrower.onBalanceUpdate.useSubscription();
 
-  // tRPC subscription (handled separately)
-  const loanUpdates = trpc.borrower.onLoanUpdate.useSubscription();
+   // tRPC mutations
+    const requestLoanMutation = trpc.borrower.requestLoan.useMutation({
+      onSuccess: () => {
+        setShowLoanModal(false);
+        setSelectedLender(null);
+        setLoanAmount('');
+        setLoanInterestRate('');
+        setLoanDuration(7);
+        activeLoans.refetch();
+      },
+    });
+   const makePaymentMutation = trpc.borrower.makePayment.useMutation({
+     onSuccess: () => {
+       activeLoans.refetch();
+     },
+   });
 
   const borrowerData = borrowerProfile.data;
 
+  // Update balance on subscription
+  useEffect(() => {
+    if (balanceUpdate.data) {
+      setCurrentBalance(balanceUpdate.data.newBalance);
+    }
+  }, [balanceUpdate.data]);
+
+  // Set initial balance
+  useEffect(() => {
+    if (borrowerProfile.data && currentBalance === null) {
+      setCurrentBalance(borrowerProfile.data.currentBalance);
+    }
+  }, [borrowerProfile.data, currentBalance]);
+
+  // Pre-fill loan form when lender is selected
+  useEffect(() => {
+    if (selectedLender) {
+      setLoanInterestRate(selectedLender.interestRate.replace('%', ''));
+      if (selectedLender.advertisement) {
+        setLoanAmount(selectedLender.advertisement.minAmount.toString());
+        setLoanDuration(selectedLender.advertisement.minDuration);
+      }
+    }
+  }, [selectedLender]);
+
+  const animateCreditScore = () => {
+    if (!borrowerData) return;
+    const circle = document.getElementById('scoreCircle');
+    if (circle) {
+      const circumference = 2 * Math.PI * 80;
+      const offset = circumference - ((borrowerData?.creditScore || 0) / 1000) * circumference;
+      circle.style.strokeDasharray = `${circumference}`;
+      circle.style.strokeDashoffset = `${offset}`;
+    }
+  };
+
   useEffect(() => {
     // Initialize credit score animation
-    const animateCreditScore = () => {
-      if (!borrowerData) return;
-      const circle = document.getElementById('scoreCircle');
-      if (circle) {
-        const circumference = 2 * Math.PI * 80;
-        const offset = circumference - (borrowerData.creditScore / 1000) * circumference;
-        circle.style.strokeDasharray = `${circumference}`;
-        circle.style.strokeDashoffset = `${offset}`;
-      }
-    };
-
     if (borrowerData) {
       animateCreditScore();
     }
   }, [borrowerData]);
-
-  useEffect(() => {
-    if (loanUpdates.data && !loanUpdates.error) {
-      // Refetch loans when loan updates are received
-      activeLoans.refetch();
-    }
-  }, [loanUpdates.data, loanUpdates.error]);
-
-  // Handle subscription errors separately
-  useEffect(() => {
-    if (loanUpdates.error) {
-      console.error('Subscription error:', loanUpdates.error);
-      // Could show a toast or notification here instead of blocking the page
-    }
-  }, [loanUpdates.error]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
@@ -67,11 +114,7 @@ export default function BorrowerDashboard() {
   }
 
   if (borrowerProfile.error || lenders.error || activeLoans.error) {
-    return <div>Error loading data: {borrowerProfile.error?.message || lenders.error?.message || activeLoans.error?.message}</div>;
-  }
-
-  if (!borrowerData) {
-    return <div>No borrower data</div>;
+    return <div>Error loading data</div>;
   }
 
   return (
@@ -119,7 +162,7 @@ export default function BorrowerDashboard() {
             <div className="stat-icon">💰</div>
             <div className="stat-content">
               <div className="stat-label">Current Balance</div>
-              <div className="stat-value">{borrowerData?.currentBalance}</div>
+              <div className="stat-value">₹{currentBalance || borrowerData?.currentBalance || 0}</div>
             </div>
           </div>
           <div className="stat-card">
@@ -136,13 +179,7 @@ export default function BorrowerDashboard() {
               <div className="stat-value">{borrowerData?.reputation}</div>
             </div>
           </div>
-          <div className="stat-card emergency">
-            <div className="stat-icon">🚨</div>
-            <div className="stat-content">
-              <div className="stat-label">Emergency Credit</div>
-              <div className="stat-value">{borrowerData?.emergencyCreditAvailable}</div>
-            </div>
-          </div>
+
         </section>
 
         {/* Emergency Credit Line */}
@@ -169,7 +206,7 @@ export default function BorrowerDashboard() {
                     </div>
                     <div className="feature-item">
                       <span className="feature-icon">✓</span>
-                      <span>Available: {borrowerData.emergencyCreditAvailable}</span>
+                       <span>Available: ₹{borrowerData?.emergencyCreditAvailable || 0}</span>
                     </div>
                   </div>
                 </div>
@@ -182,20 +219,116 @@ export default function BorrowerDashboard() {
               </div>
               <div className="emergency-history">
                 <h4>Recent Emergency Loans</h4>
-                <div className="history-item">
-                  <div className="history-info">
-                    <span className="history-amount">₹500</span>
-                    <span className="history-status completed">Completed</span>
-                  </div>
-                  <div className="history-meta">
-                    <span>0% Interest</span>
-                    <span>•</span>
-                    <span>Funded: Nov 01, 2025</span>
-                  </div>
-                </div>
+                <p className="no-history">No recent emergency loans</p>
               </div>
+
             </div>
           </div>
+        </section>
+
+        {/* Active Loans */}
+        <section className="active-loans-section">
+          <div className="card">
+            <div className="card-header">
+              <h2>💰 Your Active Loans</h2>
+              <p className="subtitle">Track your ongoing loan repayments</p>
+            </div>
+            <div className="card-body">
+              {activeLoans.data && activeLoans.data.length > 0 ? (
+                <div className="loans-grid">
+                  {activeLoans.data.map((loan: any) => (
+                    <div key={loan.id} className="loan-card-modern">
+                      <div className="loan-card-header">
+                        <div className="loan-meta">
+                          <div className="loan-id-modern">#{loan.id}</div>
+                          <span className={`status-badge-modern ${loan.status.toLowerCase()}`}>
+                            {loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
+                          </span>
+                        </div>
+                        <div className="lender-info">
+                          <span className="lender-icon">🏦</span>
+                          <span className="lender-name">{loan.lenderName}</span>
+                        </div>
+                      </div>
+
+                      <div className="loan-stats-grid">
+                        <div className="stat-box">
+                          <div className="stat-icon">💵</div>
+                          <div className="stat-content">
+                            <div className="stat-label">Loan Amount</div>
+                            <div className="stat-value">₹{loan.amount}</div>
+                          </div>
+                        </div>
+                        <div className="stat-box">
+                          <div className="stat-icon">📉</div>
+                          <div className="stat-content">
+                            <div className="stat-label">Remaining</div>
+                            <div className="stat-value">₹{loan.remaining}</div>
+                          </div>
+                        </div>
+                        <div className="stat-box">
+                          <div className="stat-icon">📅</div>
+                          <div className="stat-content">
+                            <div className="stat-label">Next Due</div>
+                            <div className="stat-value">{formatDate(loan.nextDueDate)}</div>
+                          </div>
+                        </div>
+                        <div className="stat-box">
+                          <div className="stat-icon">🎯</div>
+                          <div className="stat-content">
+                            <div className="stat-label">Due Amount</div>
+                            <div className="stat-value highlight">₹{loan.dueAmount}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="progress-section">
+                        <div className="progress-info">
+                          <span className="progress-label">Repayment Progress</span>
+                          <span className="progress-percent">{loan.progressPercent}%</span>
+                        </div>
+                        <div className="progress-bar-modern">
+                          <div
+                            className="progress-fill-modern"
+                            style={{ width: `${loan.progressPercent}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      <div className="loan-actions">
+                        <button
+                          className="btn btn-primary btn-full"
+                          onClick={() => {
+                            setSelectedLoanId(loan.id);
+                            setPaymentAmount(loan.dueAmount.toString());
+                            setShowPaymentModal(true);
+                          }}
+                        >
+                          Set Payment Plan
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon">📋</div>
+                  <h3>No Active Loans</h3>
+                   <p>You don&apos;t have any active loans at the moment.</p>
+                  <button className="btn btn-primary" onClick={() => setShowLoanModal(true)}>
+                    Request New Loan
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Request New Loan */}
+        <section className="request-loan-section">
+          <button className="btn btn-primary btn-large" onClick={() => setShowLoanModal(true)}>
+            <span>+ Request New Loan</span>
+          </button>
         </section>
 
         {/* Recommended Lenders */}
@@ -221,22 +354,39 @@ export default function BorrowerDashboard() {
                         </div>
                       </div>
                     </div>
-                    <div className="lender-details">
-                      <div className="detail-box">
-                        <span className="detail-label">Risk Tolerance</span>
-                        <span className={`risk-badge ${lender.riskTolerance.toLowerCase()}`}>{lender.riskTolerance}</span>
-                      </div>
-                      <div className="detail-box">
-                        <span className="detail-label">Interest Rate</span>
-                        <span className="detail-value">{lender.interestRate}</span>
-                      </div>
-                    </div>
-                    <button
-                      className="btn btn-primary btn-full"
-                      onClick={() => requestLoanMutation.mutate({ lenderId: lender.id, amount: 2000 })}
-                    >
-                      Request Loan
-                    </button>
+                     <div className="lender-details">
+                       <div className="detail-box">
+                         <span className="detail-label">Risk Tolerance</span>
+                         <span className={`risk-badge ${lender.riskTolerance.toLowerCase()}`}>{lender.riskTolerance}</span>
+                       </div>
+                       <div className="detail-box">
+                         <span className="detail-label">Interest Rate</span>
+                         <span className="detail-value">{lender.interestRate}</span>
+                       </div>
+                       {lender.advertisement && (
+                         <div className="detail-box">
+                           <span className="detail-label">Loan Range</span>
+                           <span className="detail-value">₹{lender.advertisement.minAmount} - ₹{lender.advertisement.maxAmount}</span>
+                         </div>
+                       )}
+                     </div>
+                      {lender.advertisement && (
+                        <div className="advertisement-preview">
+                          <div style={{ display: 'flex', gap: '10px', fontSize: '11px', color: 'var(--silver-medium)' }}>
+                            <span>Duration: {lender.advertisement.minDuration}-{lender.advertisement.maxDuration} days</span>
+                            <span>Target: {lender.advertisement.targetAudience}</span>
+                          </div>
+                        </div>
+                      )}
+                      <button
+                        className="btn btn-primary btn-full"
+                        onClick={() => {
+                          setSelectedLender(lender);
+                          setShowLoanModal(true);
+                        }}
+                      >
+                        Request Loan
+                      </button>
                   </div>
                 ))}
               </div>
@@ -327,15 +477,15 @@ export default function BorrowerDashboard() {
                     <div className="loan-info-grid">
                       <div className="loan-info-item">
                         <span className="loan-label">Loan Amount</span>
-                        <span className="loan-value">{loan.amount}</span>
+                        <span className="loan-value">₹{loan.amount}</span>
                       </div>
                       <div className="loan-info-item">
                         <span className="loan-label">Remaining</span>
-                        <span className="loan-value">{loan.remaining}</span>
+                        <span className="loan-value">₹{loan.remaining}</span>
                       </div>
                       <div className="loan-info-item">
                         <span className="loan-label">Interest Rate</span>
-                        <span className="loan-value">{loan.interestRate}</span>
+                        <span className="loan-value">{loan.interestRate}%</span>
                       </div>
                       <div className="loan-info-item">
                         <span className="loan-label">Next Due</span>
@@ -353,9 +503,13 @@ export default function BorrowerDashboard() {
                     </div>
                     <button
                       className="btn btn-primary"
-                      onClick={() => makePaymentMutation.mutate({ loanId: loan.id, amount: parseInt(loan.dueAmount.replace('₹', '')) })}
+                      onClick={() => {
+                        setSelectedLoanId(loan.id);
+                        setPaymentAmount(loan.dueAmount.toString());
+                        setShowPaymentModal(true);
+                      }}
                     >
-                      Pay {loan.dueAmount}
+                      Set Payment Plan
                     </button>
                   </div>
                 ))}
@@ -380,7 +534,7 @@ export default function BorrowerDashboard() {
                       <circle cx="100" cy="100" r="80" className="score-progress" id="scoreCircle"></circle>
                     </svg>
                     <div className="score-text">
-                      <span className="score-number">{borrowerData.creditScore}</span>
+                       <span className="score-number">{borrowerData?.creditScore || 0}</span>
                       <span className="score-rating">Excellent</span>
                     </div>
                   </div>
@@ -452,7 +606,7 @@ export default function BorrowerDashboard() {
                       <span className="transaction-type">Loan Payment</span>
                       <span className="transaction-date">Nov 05, 2025</span>
                     </div>
-                    <span className="transaction-amount debit">- ₹500</span>
+                    <span className="transaction-amount debit">-₹500</span>
                   </div>
                   <div className="transaction-item">
                     <div className="transaction-info">
@@ -504,13 +658,163 @@ export default function BorrowerDashboard() {
         </section>
 
         {/* Request New Loan */}
-        <section className="request-loan-section">
-          <button className="btn btn-primary btn-large" id="requestLoanBtn">
-            <span>+ Request New Loan</span>
-          </button>
-        </section>
+         <section className="request-loan-section">
+           <button className="btn btn-primary btn-large" onClick={() => setShowLoanModal(true)}>
+             <span>+ Request New Loan</span>
+           </button>
+         </section>
       </main>
 
+      {/* Loan Request Modal */}
+      {showLoanModal && (
+         <div className="modal-overlay" onClick={() => {
+           setShowLoanModal(false);
+           setSelectedLender(null);
+         }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+             <div className="modal-header">
+               <h2>Request Loan from {selectedLender?.name || 'Lender'}</h2>
+               <button className="modal-close" onClick={() => {
+                 setShowLoanModal(false);
+                 setSelectedLender(null);
+               }}>×</button>
+             </div>
+               <form onSubmit={(e) => {
+                e.preventDefault();
+                if (loanAmount && selectedLender) {
+                  requestLoanMutation.mutate({
+                    lenderId: selectedLender.id,
+                    amount: parseInt(loanAmount),
+                    duration: loanDuration
+                  });
+                }
+              }}>
+               <div className="modal-body">
+                  <div className="form-group">
+                    <label>Principal Amount (₹)</label>
+                    <input
+                      type="number"
+                      value={loanAmount}
+                      onChange={(e) => setLoanAmount(e.target.value)}
+                      placeholder={selectedLender?.advertisement ? `₹${selectedLender.advertisement.minAmount} - ₹${selectedLender.advertisement.maxAmount}` : "Enter principal amount"}
+                      min={selectedLender?.advertisement?.minAmount || 100}
+                      max={selectedLender?.advertisement?.maxAmount || 10000}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Interest Rate (%)</label>
+                    <input
+                      type="number"
+                      value={loanInterestRate}
+                      onChange={(e) => setLoanInterestRate(e.target.value)}
+                      placeholder="Enter interest rate (e.g., 5.5)"
+                      min="0"
+                      max="50"
+                      step="0.1"
+                      required
+                      readOnly={!!selectedLender}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Duration (Days)</label>
+                    <input
+                      type="number"
+                      value={loanDuration}
+                      onChange={(e) => setLoanDuration(parseInt(e.target.value))}
+                      placeholder={selectedLender?.advertisement ? `${selectedLender.advertisement.minDuration}-${selectedLender.advertisement.maxDuration} days` : "Enter duration in days"}
+                      min={selectedLender?.advertisement?.minDuration || 1}
+                      max={selectedLender?.advertisement?.maxDuration || 365}
+                      required
+                    />
+                  </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowLoanModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={requestLoanMutation.isPending}>
+                  {requestLoanMutation.isPending ? 'Requesting...' : 'Request Loan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        )}
+
+        {/* Payment Plan Modal */}
+        {showPaymentModal && (
+          <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Set Payment Plan</h2>
+                <button className="modal-close" onClick={() => setShowPaymentModal(false)}>×</button>
+              </div>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (selectedLoanId && paymentAmount && paymentFrequency && numberOfInstallments) {
+                  makePaymentMutation.mutate({
+                    loanId: selectedLoanId,
+                    amount: parseInt(paymentAmount),
+                    frequency: paymentFrequency,
+                    numberOfInstallments: numberOfInstallments
+                  });
+                  setShowPaymentModal(false);
+                  setSelectedLoanId(null);
+                  setPaymentAmount('');
+                  setPaymentFrequency('monthly');
+                  setNumberOfInstallments(1);
+                }
+              }}>
+                <div className="modal-body">
+                  <div className="form-group">
+                    <label>Payment Amount (₹)</label>
+                    <input
+                      type="number"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      placeholder="Enter payment amount"
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Payment Frequency</label>
+                    <select
+                      value={paymentFrequency}
+                      onChange={(e) => setPaymentFrequency(e.target.value)}
+                      required
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Number of Installments</label>
+                    <input
+                      type="number"
+                      value={numberOfInstallments}
+                      onChange={(e) => setNumberOfInstallments(parseInt(e.target.value))}
+                      placeholder="Enter number of payments"
+                      min="1"
+                      max="100"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={makePaymentMutation.isPending}>
+                    {makePaymentMutation.isPending ? 'Creating Plan...' : 'Create Payment Plan'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
     </>
   );

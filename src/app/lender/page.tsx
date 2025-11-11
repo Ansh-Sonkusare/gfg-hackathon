@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "../../utils/trpc";
+import "../borrower/borrower.css";
+import "./lender.css";
+import AdvertisementModal from "./AdvertisementModal";
 
 export default function LenderDashboard() {
   const [currentPage, setCurrentPage] = useState("home");
@@ -9,26 +13,77 @@ export default function LenderDashboard() {
   const [amountFilter, setAmountFilter] = useState("all");
   const [durationFilter, setDurationFilter] = useState("all");
   const [collegeFilter, setCollegeFilter] = useState("all");
+   const [showBalanceModal, setShowBalanceModal] = useState(false);
+   const [showAdModal, setShowAdModal] = useState(false);
+   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
+   const router = useRouter();
+
+  // Check authentication
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      router.push('/login');
+      return;
+    }
+  }, [router]);
 
   // tRPC queries
   const lenderProfile = trpc.lender.getProfile.useQuery();
-  const borrowers = trpc.lender.getBorrowers.useQuery();
+  const loanRequests = trpc.lender.getLoanRequests.useQuery();
   const activeLoans = trpc.lender.getActiveLoans.useQuery();
   const transactions = trpc.lender.getTransactions.useQuery();
+  const filteredLoanRequests = trpc.lender.updateFilters.useQuery({
+    riskFilter,
+    amountFilter,
+    durationFilter,
+    collegeFilter,
+  });
 
   // tRPC mutations
-  const fundLoanMutation = trpc.lender.fundLoan.useMutation();
+  const fundLoanMutation = trpc.lender.fundLoan.useMutation({
+    onSuccess: () => {
+      loanRequests.refetch();
+      activeLoans.refetch();
+    },
+  });
 
-  // tRPC subscription
+  // tRPC subscriptions
   const loanUpdates = trpc.lender.onLoanUpdate.useSubscription();
+  const balanceUpdate = trpc.lender.onBalanceUpdate.useSubscription();
+
+  const refetchLoans = useCallback(() => {
+    if (loanUpdates.data) {
+      activeLoans.refetch();
+      loanRequests.refetch();
+      filteredLoanRequests.refetch();
+    }
+  }, [loanUpdates.data, activeLoans, loanRequests, filteredLoanRequests]);
+
+  // Update balance on subscription
+  useEffect(() => {
+    if (balanceUpdate.data) {
+      setCurrentBalance(balanceUpdate.data.newBalance);
+    }
+  }, [balanceUpdate.data]);
+
+  // Set initial balance
+  useEffect(() => {
+    if (lenderProfile.data && currentBalance === null) {
+      setCurrentBalance(lenderProfile.data.walletBalance);
+    }
+  }, [lenderProfile.data, currentBalance]);
+
+  useEffect(() => {
+    refetchLoans();
+  }, [refetchLoans]);
 
   const lenderData = lenderProfile.data;
 
-  if (lenderProfile.isLoading || borrowers.isLoading || activeLoans.isLoading || transactions.isLoading) {
+  if (lenderProfile.isLoading || loanRequests.isLoading || activeLoans.isLoading || transactions.isLoading) {
     return <div>Loading...</div>;
   }
 
-  if (lenderProfile.error || borrowers.error || activeLoans.error || transactions.error) {
+  if (lenderProfile.error || loanRequests.error || activeLoans.error || transactions.error) {
     return <div>Error loading data</div>;
   }
 
@@ -36,12 +91,9 @@ export default function LenderDashboard() {
     return <div>No lender data</div>;
   }
 
-  useEffect(() => {
-    if (loanUpdates.data) {
-      // Refetch loans when loan updates are received
-      activeLoans.refetch();
-    }
-  }, [loanUpdates.data]);
+
+
+
 
   const updateStats = () => {
     // Stats are already in the data
@@ -59,13 +111,6 @@ export default function LenderDashboard() {
 
     // Badges are rendered in JSX
   };
-
-  const filteredBorrowers = trpc.lender.updateFilters.useQuery({
-    riskFilter,
-    amountFilter,
-    durationFilter,
-    collegeFilter,
-  });
 
   const renderActiveLoans = () => {
     // Loans are rendered in JSX
@@ -147,6 +192,13 @@ export default function LenderDashboard() {
             👨‍💼
           </div>
           <span id="navUserName">{lenderData.name}</span>
+          <button
+            className="balance-btn"
+            onClick={() => setShowBalanceModal(true)}
+            title="View Balance"
+          >
+            💰
+          </button>
         </div>
       </nav>
 
@@ -157,7 +209,7 @@ export default function LenderDashboard() {
             <h2>
               Welcome back, <span id="userName">{lenderData.name}</span>! 👋
             </h2>
-            <p>Here's your lending portfolio overview</p>
+             <p>Here&apos;s your lending portfolio overview</p>
           </div>
 
           {/* EduCIBIL Score Card */}
@@ -221,16 +273,16 @@ export default function LenderDashboard() {
           <div className="stats-grid">
             <div className="stat-card">
               <div className="stat-label">Wallet Balance</div>
-              <div className="stat-value" id="walletBalance">
-                {lenderData.walletBalance}
-              </div>
+               <div className="stat-value" id="walletBalance">
+                 ₹{currentBalance || lenderData.walletBalance}
+               </div>
               <div className="stat-change">Available to lend</div>
             </div>
             <div className="stat-card">
               <div className="stat-label">Total Lent</div>
-              <div className="stat-value" id="totalLent">
-                {lenderData.totalLent}
-              </div>
+               <div className="stat-value" id="totalLent">
+                 ₹{lenderData.totalLent}
+               </div>
               <div className="stat-change">+₹2,000 this month</div>
             </div>
             <div className="stat-card">
@@ -263,10 +315,64 @@ export default function LenderDashboard() {
                 {lenderData.levelProgress} XP to Gold
               </div>
             </div>
-          </div>
-        </section>
+           </div>
 
-        {/* Gamification Section */}
+           {/* Active Loans */}
+           <div className="active-loans-section">
+             <div className="card">
+               <div className="card-header">
+                 <h2>📋 Your Active Loans</h2>
+                 <p className="subtitle">Monitor your lent loans and repayments</p>
+               </div>
+               <div className="card-body">
+                 {activeLoans.data && activeLoans.data.length > 0 ? (
+                   <div className="loans-table">
+                     <table>
+                       <thead>
+                         <tr>
+                           <th>Loan ID</th>
+                           <th>Borrower</th>
+                           <th>Amount</th>
+                           <th>Progress</th>
+                           <th>Status</th>
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {activeLoans.data.map((loan: any) => (
+                           <tr key={loan.id}>
+                             <td>{loan.id}</td>
+                             <td>{loan.borrowerName}</td>
+                             <td>₹{loan.amount}</td>
+                             <td>
+                               <div className="progress-cell">
+                                 <span>{loan.progressPercent}%</span>
+                                 <div className="progress-bar">
+                                   <div
+                                     className="progress-fill"
+                                     style={{ width: `${loan.progressPercent}%` }}
+                                   ></div>
+                                 </div>
+                               </div>
+                             </td>
+                             <td>
+                               <span className={`status-badge ${loan.status.toLowerCase()}`}>
+                                 {loan.status}
+                               </span>
+                             </td>
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                   </div>
+                 ) : (
+                   <p className="no-loans">No active loans</p>
+                 )}
+               </div>
+             </div>
+           </div>
+         </section>
+
+         {/* Gamification Section */}
         <section id="gamificationPage" className="page-section">
           <div className="section-header">
             <h2>Your Financial Journey 🎮</h2>
@@ -278,7 +384,7 @@ export default function LenderDashboard() {
               <div className="level-badge">🥈</div>
               <div className="level-info">
                 <h3 id="levelTitle">Silver Lender</h3>
-                <p>You're in the top 30% of all lenders!</p>
+                 <p>You&apos;re in the top 30% of all lenders!</p>
               </div>
             </div>
 
@@ -399,77 +505,59 @@ export default function LenderDashboard() {
           </div>
 
           <div className="borrowers-grid" id="borrowersContainer">
-            {filteredBorrowers.data?.map((borrower: any) => (
-              <div key={borrower.id} className="borrower-card">
+            {filteredLoanRequests.data?.map((loanRequest: any) => (
+              <div key={loanRequest.id} className="borrower-card">
                 <div className="borrower-header">
-                  <div className="borrower-avatar">{borrower.profileImage}</div>
+                  <div className="borrower-avatar">{loanRequest.profileImage}</div>
                   <div className="borrower-info">
                     <h4>
-                      {borrower.name}
-                      {borrower.trustBadge && (
+                      {loanRequest.borrowerName}
+                      {loanRequest.borrowerTrustBadge && (
                         <span className="verified-badge">✓ Verified</span>
                       )}
                     </h4>
                     <div className="borrower-meta">
-                      {borrower.college} | Year {borrower.year} {borrower.branch}
+                      {loanRequest.borrowerCollege} | Year {loanRequest.borrowerYear} CSE
                     </div>
                   </div>
                 </div>
                 <div className="borrower-score">
                   <div className="score-badge">
-                    {borrower.matchPercentage}% Match
+                    {loanRequest.matchPercentage}% Match
                   </div>
                   <div
-                    className={`risk-badge risk-${borrower.riskTolerance.toLowerCase()}`}
+                    className={`risk-badge risk-${loanRequest.riskTolerance.toLowerCase()}`}
                   >
-                    {borrower.riskTolerance} Risk
+                    {loanRequest.riskTolerance} Risk
                   </div>
                 </div>
                 <div className="borrower-details">
                   <div className="detail-item">
                     <span className="detail-label">Amount</span>
-                    <span className="detail-value">₹{borrower.amount}</span>
+                    <span className="detail-value">₹{loanRequest.amount}</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">Duration</span>
-                    <span className="detail-value">{borrower.duration} Days</span>
+                    <span className="detail-value">{loanRequest.duration} Days</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">Interest</span>
-                    <span className="detail-value">{borrower.interestRate}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Compatibility</span>
-                    <span className="detail-value">
-                      {borrower.compatibility}%
-                    </span>
-                  </div>
-                </div>
-                <div className="compatibility-bar">
-                  <div className="compatibility-label">
-                    <span>Compatibility</span>
-                    <span>{borrower.compatibility}%</span>
-                  </div>
-                  <div className="progress-bar">
-                    <div
-                      className="progress-fill"
-                      style={{ width: `${borrower.compatibility}%` }}
-                    ></div>
+                    <span className="detail-value">{loanRequest.interestRate}</span>
                   </div>
                 </div>
                 <div className="borrower-actions">
                   <button
                     className="btn btn-small"
-                    onClick={() => console.log("View details for", borrower.id)}
+                    onClick={() => console.log("View details for", loanRequest.id)}
                   >
                     View Details
                   </button>
-                  <button
-                    className="btn btn-primary btn-small"
-                    onClick={() => fundLoanMutation.mutate({ borrowerId: borrower.id, amount: borrower.amount })}
-                  >
-                    Fund Loan
-                  </button>
+                   <button
+                     className="btn btn-primary btn-small btn-fund"
+                     onClick={() => fundLoanMutation.mutate({ loanId: loanRequest.id })}
+                   >
+                     Fund Loan
+                   </button>
                 </div>
               </div>
             ))}
@@ -494,18 +582,18 @@ export default function LenderDashboard() {
             </div>
             <div id="loansContainer">
               {activeLoans.data?.map((loan: any) => (
-                <div key={loan.id} className="table-row">
-                  <div>{loan.borrower}</div>
-                  <div>{loan.amount}</div>
-                  <div>{loan.interest}</div>
-                  <div>{formatDate(loan.dueDate)}</div>
-                  <div>
-                    <span className={`status-badge status-${loan.status}`}>
-                      {loan.status.replace("-", " ")}
-                    </span>
-                  </div>
-                  <div className="amount-positive">{loan.earnings}</div>
-                </div>
+                 <div key={loan.id} className="table-row">
+                   <div>{loan.borrower}</div>
+                   <div>₹{loan.amount}</div>
+                   <div>{loan.interest}%</div>
+                   <div>{formatDate(loan.dueDate)}</div>
+                   <div>
+                     <span className={`status-badge status-${loan.status}`}>
+                       {loan.status.replace("-", " ")}
+                     </span>
+                   </div>
+                   <div className="amount-positive">₹{loan.earnings}</div>
+                 </div>
               ))}
             </div>
           </div>
@@ -521,9 +609,9 @@ export default function LenderDashboard() {
           <div className="stats-grid" style={{ marginBottom: "30px" }}>
             <div className="stat-card">
               <div className="stat-label">Available Balance</div>
-              <div className="stat-value" id="walletAvailable">
-                {lenderData.walletBalance}
-              </div>
+               <div className="stat-value" id="walletAvailable">
+                 ₹{currentBalance || lenderData.walletBalance}
+               </div>
             </div>
             <div className="stat-card">
               <div className="stat-label">In Active Loans</div>
@@ -547,11 +635,11 @@ export default function LenderDashboard() {
                   <div className="transaction-type">{transaction.type}</div>
                   <div className="transaction-date">{transaction.date}</div>
                 </div>
-                <div
-                  className={`transaction-amount ${transaction.positive ? "amount-positive" : "amount-negative"}`}
-                >
-                  {transaction.amount}
-                </div>
+                 <div
+                   className={`transaction-amount ${transaction.positive ? "amount-positive" : "amount-negative"}`}
+                 >
+                   {transaction.positive ? '+' : '-'}₹{transaction.amount}
+                 </div>
               </div>
             ))}
           </div>
@@ -640,895 +728,77 @@ export default function LenderDashboard() {
                 <option>Aggressive</option>
               </select>
             </div>
-            <button className="btn btn-primary">Save Preferences</button>
-          </div>
-        </section>
+             <button className="btn btn-primary">Save Preferences</button>
+           </div>
+
+           <div className="profile-section">
+             <h3 style={{ marginBottom: "15px" }}>Lending Advertisement</h3>
+             <p style={{ color: "var(--silver-medium)", marginBottom: "15px", fontSize: "14px" }}>
+               Create advertisements to attract borrowers and showcase your lending terms
+             </p>
+             <button
+               className="btn btn-primary"
+               onClick={() => setShowAdModal(true)}
+             >
+               Create Advertisement
+             </button>
+           </div>
+         </section>
       </div>
 
-      <style jsx>{`
-        :root {
-          --black-deep: #000000;
-          --black-charcoal: #0a0a0a;
-          --grey-900: #1a1a1a;
-          --grey-800: #2a2a2a;
-          --grey-700: #3a3a3a;
-          --grey-600: #4a4a4a;
-          --silver-light: #e8e8e8;
-          --silver-medium: #d3d3d3;
-          --silver-dark: #c0c0c0;
-          --white-pure: #ffffff;
-          --gold-elite: #ffd700;
-          --bronze-fair: #cd7f32;
-          --red-critical: #ff6b6b;
-          --green-success: #4caf50;
-          --blue-info: #2196f3;
-          --gradient-metallic: linear-gradient(
-            135deg,
-            #c0c0c0 0%,
-            #e8e8e8 50%,
-            #c0c0c0 100%
-          );
-        }
-
-        body {
-          font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-          background: var(--black-deep);
-          color: var(--white-pure);
-          line-height: 1.6;
-          overflow-x: hidden;
-        }
-
-        /* Top Navigation */
-        .top-nav {
-          background: var(--grey-900);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 16px 40px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          position: sticky;
-          top: 0;
-          z-index: 100;
-          backdrop-filter: blur(10px);
-        }
-
-        .nav-brand {
-          font-size: 24px;
-          font-weight: 700;
-          background: var(--gradient-metallic);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-
-        .nav-menu {
-          display: flex;
-          gap: 30px;
-          list-style: none;
-        }
-
-        .nav-menu a {
-          color: var(--silver-medium);
-          text-decoration: none;
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.3s ease;
-          cursor: pointer;
-        }
-
-        .nav-menu a:hover,
-        .nav-menu a.active {
-          color: var(--white-pure);
-        }
-
-        .nav-user {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .user-avatar {
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          background: var(--grey-800);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 20px;
-          border: 2px solid var(--silver-dark);
-        }
-
-        .container {
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 40px 40px;
-        }
-
-        .page-section {
-          display: none;
-        }
-
-        .page-section.active {
-          display: block;
-        }
-
-        .section-header {
-          margin-bottom: 30px;
-        }
-
-        .section-header h2 {
-          font-size: 28px;
-          margin-bottom: 8px;
-        }
-
-        .section-header p {
-          color: var(--silver-medium);
-          font-size: 14px;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 20px;
-          margin-bottom: 40px;
-        }
-
-        .stat-card {
-          background: var(--grey-900);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 16px;
-          padding: 24px;
-          transition: all 0.3s ease;
-        }
-
-        .stat-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-          border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .stat-label {
-          color: var(--silver-medium);
-          font-size: 13px;
-          margin-bottom: 8px;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .stat-value {
-          font-size: 32px;
-          font-weight: 700;
-          margin-bottom: 8px;
-        }
-
-        .stat-change {
-          font-size: 12px;
-          color: var(--green-success);
-        }
-
-        /* EduCIBIL Score Display */
-        .educibil-card {
-          background: linear-gradient(
-            135deg,
-            var(--grey-900) 0%,
-            var(--grey-800) 100%
-          );
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          border-radius: 20px;
-          padding: 30px;
-          margin-bottom: 40px;
-        }
-
-        .educibil-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-
-        .educibil-score {
-          font-size: 64px;
-          font-weight: 700;
-        }
-
-        .educibil-score.gold {
-          color: var(--gold-elite);
-        }
-
-        .educibil-score.silver {
-          color: var(--silver-dark);
-        }
-
-        .educibil-score.bronze {
-          color: var(--bronze-fair);
-        }
-
-        .educibil-score.critical {
-          color: var(--red-critical);
-        }
-
-        .score-breakdown {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 20px;
-          margin-top: 20px;
-        }
-
-        .score-item {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .score-item-label {
-          color: var(--silver-medium);
-          font-size: 13px;
-        }
-
-        .score-item-value {
-          font-size: 20px;
-          font-weight: 600;
-        }
-
-        .progress-bar {
-          width: 100%;
-          height: 8px;
-          background: var(--grey-800);
-          border-radius: 10px;
-          overflow: hidden;
-        }
-
-        .progress-fill {
-          height: 100%;
-          background: var(--gradient-metallic);
-          transition: width 0.3s ease;
-        }
-
-        /* Badges and Gamification */
-        .gamification-section {
-          background: var(--grey-900);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 20px;
-          padding: 30px;
-          margin-bottom: 40px;
-        }
-
-        .level-display {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          margin-bottom: 30px;
-        }
-
-        .level-badge {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 36px;
-          border: 3px solid var(--silver-dark);
-          background: var(--grey-800);
-        }
-
-        .level-info h3 {
-          font-size: 24px;
-          margin-bottom: 5px;
-        }
-
-        .level-info p {
-          color: var(--silver-medium);
-          font-size: 14px;
-        }
-
-        .xp-progress {
-          margin-bottom: 30px;
-        }
-
-        .xp-label {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 10px;
-          font-size: 14px;
-          color: var(--silver-medium);
-        }
-
-        .badges-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-          gap: 15px;
-        }
-
-        .badge-item {
-          background: var(--grey-800);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          padding: 16px;
-          text-align: center;
-          transition: all 0.3s ease;
-        }
-
-        .badge-item.unlocked {
-          border-color: var(--gold-elite);
-        }
-
-        .badge-item.locked {
-          opacity: 0.4;
-        }
-
-        .badge-icon {
-          font-size: 32px;
-          margin-bottom: 8px;
-        }
-
-        .badge-name {
-          font-size: 12px;
-          font-weight: 600;
-        }
-
-        /* Borrower Cards */
-        .filters-bar {
-          background: var(--grey-900);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 16px;
-          padding: 20px;
-          margin-bottom: 30px;
-          display: flex;
-          gap: 15px;
-          flex-wrap: wrap;
-        }
-
-        .filter-item {
-          flex: 1;
-          min-width: 150px;
-        }
-
-        .filter-item label {
-          display: block;
-          color: var(--silver-medium);
-          font-size: 12px;
-          margin-bottom: 5px;
-          text-transform: uppercase;
-        }
-
-        .filter-item select,
-        .filter-item input {
-          width: 100%;
-          padding: 10px;
-          background: var(--grey-800);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 8px;
-          color: var(--white-pure);
-          font-size: 14px;
-        }
-
-        .borrowers-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-          gap: 20px;
-        }
-
-        .borrower-card {
-          background: var(--grey-900);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 16px;
-          padding: 24px;
-          transition: all 0.3s ease;
-          cursor: pointer;
-        }
-
-        .borrower-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-          border-color: var(--silver-dark);
-        }
-
-        .borrower-header {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          margin-bottom: 20px;
-        }
-
-        .borrower-avatar {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          background: var(--grey-800);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
-          border: 2px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .borrower-info h4 {
-          font-size: 18px;
-          margin-bottom: 4px;
-        }
-
-        .borrower-meta {
-          font-size: 12px;
-          color: var(--silver-medium);
-        }
-
-        .borrower-score {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-bottom: 15px;
-          padding: 10px;
-          background: var(--grey-800);
-          border-radius: 8px;
-        }
-
-        .score-badge {
-          font-size: 24px;
-          font-weight: 700;
-        }
-
-        .risk-badge {
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 11px;
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-
-        .risk-low {
-          background: rgba(76, 175, 80, 0.2);
-          color: var(--green-success);
-        }
-
-        .risk-medium {
-          background: rgba(255, 193, 7, 0.2);
-          color: #ffc107;
-        }
-
-        .risk-high {
-          background: rgba(255, 107, 107, 0.2);
-          color: var(--red-critical);
-        }
-
-        .borrower-details {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          margin-bottom: 15px;
-        }
-
-        .detail-item {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .detail-label {
-          font-size: 11px;
-          color: var(--silver-medium);
-          text-transform: uppercase;
-          margin-bottom: 4px;
-        }
-
-        .detail-value {
-          font-size: 16px;
-          font-weight: 600;
-        }
-
-        .compatibility-bar {
-          margin-bottom: 15px;
-        }
-
-        .compatibility-label {
-          display: flex;
-          justify-content: space-between;
-          font-size: 12px;
-          color: var(--silver-medium);
-          margin-bottom: 5px;
-        }
-
-        .borrower-actions {
-          display: flex;
-          gap: 10px;
-        }
-
-        .btn-small {
-          padding: 8px 16px;
-          font-size: 13px;
-          flex: 1;
-        }
-
-        /* Modal */
-        .modal {
-          display: none;
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: rgba(0, 0, 0, 0.8);
-          backdrop-filter: blur(5px);
-          z-index: 1000;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-        }
-
-        .modal.active {
-          display: flex;
-        }
-
-        .modal-content {
-          background: var(--grey-900);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 20px;
-          padding: 30px;
-          max-width: 800px;
-          width: 100%;
-          max-height: 90vh;
-          overflow-y: auto;
-          position: relative;
-        }
-
-        .modal-close {
-          position: absolute;
-          top: 20px;
-          right: 20px;
-          background: var(--grey-800);
-          border: none;
-          color: var(--white-pure);
-          font-size: 24px;
-          width: 35px;
-          height: 35px;
-          border-radius: 50%;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .modal-header {
-          margin-bottom: 20px;
-        }
-
-        .modal-header h3 {
-          font-size: 24px;
-          margin-bottom: 5px;
-        }
-
-        /* Active Loans Table */
-        .loans-table {
-          background: var(--grey-900);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 16px;
-          overflow: hidden;
-        }
-
-        .table-header {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
-          gap: 10px;
-          padding: 15px 20px;
-          background: var(--grey-800);
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--silver-medium);
-          text-transform: uppercase;
-        }
-
-        .table-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
-          gap: 10px;
-          padding: 20px;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
-          transition: all 0.3s ease;
-        }
-
-        .table-row:hover {
-          background: var(--grey-800);
-        }
-
-        .status-badge {
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 11px;
-          font-weight: 600;
-          display: inline-block;
-        }
-
-        .status-on-track {
-          background: rgba(76, 175, 80, 0.2);
-          color: var(--green-success);
-        }
-
-        .status-at-risk {
-          background: rgba(255, 193, 7, 0.2);
-          color: #ffc107;
-        }
-
-        .status-overdue {
-          background: rgba(255, 107, 107, 0.2);
-          color: var(--red-critical);
-        }
-
-        /* Transactions */
-        .transaction-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 15px;
-          background: var(--grey-800);
-          border-radius: 10px;
-          margin-bottom: 10px;
-        }
-
-        .transaction-info {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-        }
-
-        .transaction-type {
-          font-size: 14px;
-          font-weight: 600;
-        }
-
-        .transaction-date {
-          font-size: 12px;
-          color: var(--silver-medium);
-        }
-
-        .transaction-amount {
-          font-size: 18px;
-          font-weight: 700;
-        }
-
-        .amount-positive {
-          color: var(--green-success);
-        }
-
-        .amount-negative {
-          color: var(--red-critical);
-        }
-
-        /* Toast Notification */
-        .toast {
-          position: fixed;
-          bottom: 30px;
-          right: 30px;
-          background: var(--grey-900);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 12px;
-          padding: 16px 24px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-          display: none;
-          align-items: center;
-          gap: 12px;
-          z-index: 2000;
-        }
-
-        .toast.active {
-          display: flex;
-          animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-          from {
-            transform: translateX(400px);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-
-        .toast-icon {
-          font-size: 24px;
-        }
-
-        .toast-message {
-          font-size: 14px;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-          .top-nav {
-            padding: 16px 20px;
-          }
-
-          .nav-menu {
-            display: none;
-          }
-
-          .container {
-            padding: 20px;
-          }
-
-          .stats-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .borrowers-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .table-header,
-          .table-row {
-            display: none;
-          }
-
-          .filters-bar {
-            flex-direction: column;
-          }
-        }
-
-        .verified-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          background: rgba(76, 175, 80, 0.2);
-          color: var(--green-success);
-          padding: 4px 8px;
-          border-radius: 12px;
-          font-size: 11px;
-          font-weight: 600;
-        }
-
-        .form-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 15px;
-        }
-
-        .loan-preview {
-          background: var(--grey-800);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          padding: 20px;
-          margin-top: 20px;
-        }
-
-        .preview-item {
-          display: flex;
-          justify-content: space-between;
-          padding: 10px 0;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .preview-item:last-child {
-          border-bottom: none;
-        }
-
-        .profile-section {
-          background: var(--grey-900);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 16px;
-          padding: 30px;
-          margin-bottom: 20px;
-        }
-
-        .profile-header {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          margin-bottom: 30px;
-        }
-
-        .profile-avatar {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          background: var(--grey-800);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 36px;
-          border: 3px solid var(--silver-dark);
-        }
-
-        .profile-details {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 20px;
-        }
-
-        .detail-card {
-          background: var(--grey-800);
-          padding: 15px;
-          border-radius: 10px;
-        }
-
-        .reviews-section {
-          margin-top: 30px;
-        }
-
-        .review-item {
-          background: var(--grey-800);
-          padding: 15px;
-          border-radius: 10px;
-          margin-bottom: 10px;
-        }
-
-        .review-header {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 8px;
-        }
-
-        .review-rating {
-          color: var(--gold-elite);
-        }
-
-        /* Buttons */
-        .btn {
-          padding: 12px 24px;
-          border: none;
-          border-radius: 10px;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          text-align: center;
-        }
-
-        .btn-primary {
-          width: 100%;
-          background: var(--gradient-metallic);
-          color: var(--black-deep);
-          box-shadow: 0 4px 15px rgba(192, 192, 192, 0.3);
-        }
-
-        .btn-primary:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(192, 192, 192, 0.4);
-        }
-
-        .btn-secondary {
-          background: var(--grey-800);
-          color: var(--white-pure);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .btn-secondary:hover {
-          background: var(--grey-700);
-        }
-
-        /* Form elements */
-        .form-group {
-          margin-bottom: 20px;
-        }
-
-        .form-group label {
-          display: block;
-          color: var(--silver-light);
-          font-size: 14px;
-          margin-bottom: 8px;
-          font-weight: 500;
-        }
-
-        .form-group input,
-        .form-group select {
-          width: 100%;
-          padding: 12px 16px;
-          background: var(--grey-800);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-          color: var(--white-pure);
-          font-size: 14px;
-          transition: all 0.3s ease;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus {
-          outline: none;
-          border-color: var(--silver-dark);
-          box-shadow: 0 0 0 3px rgba(192, 192, 192, 0.1);
-        }
-      `}</style>
+      {/* Balance Modal */}
+      {showBalanceModal && (
+        <div className="modal active" onClick={() => setShowBalanceModal(false)}>
+          <div className="modal-content balance-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-close" onClick={() => setShowBalanceModal(false)}>×</div>
+            <div className="modal-header">
+              <div className="balance-header-icon">💰</div>
+              <h3>Your Financial Overview</h3>
+              <p>Track your lending portfolio and earnings</p>
+            </div>
+            <div className="balance-details">
+              <div className="balance-item primary">
+                <div className="balance-icon">🏦</div>
+                <div className="balance-info">
+                  <span className="balance-label">Available Balance</span>
+                   <span className="balance-value">₹{currentBalance || lenderData.walletBalance}</span>
+                  <span className="balance-subtitle">Ready to lend</span>
+                </div>
+              </div>
+              <div className="balance-item">
+                <div className="balance-icon">📈</div>
+                <div className="balance-info">
+                  <span className="balance-label">Total Lent</span>
+                  <span className="balance-value">₹{lenderData.totalLent}</span>
+                  <span className="balance-subtitle">Lifetime lending</span>
+                </div>
+              </div>
+              <div className="balance-item earnings">
+                <div className="balance-icon">💎</div>
+                <div className="balance-info">
+                  <span className="balance-label">Monthly Earnings</span>
+                  <span className="balance-value">₹{lenderData.monthlyEarnings}</span>
+                  <span className="balance-subtitle">From interest</span>
+                </div>
+              </div>
+            </div>
+            <div className="balance-actions">
+              <button className="btn btn-secondary">Add Funds</button>
+              <button className="btn btn-primary">View Transactions</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Advertisement Modal */}
+      <AdvertisementModal
+        isOpen={showAdModal}
+        onClose={() => setShowAdModal(false)}
+        onSuccess={() => {
+          // Could refetch advertisements or show success message
+          setShowAdModal(false);
+        }}
+      />
     </>
   );
 }
