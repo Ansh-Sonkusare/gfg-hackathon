@@ -84,8 +84,12 @@ export const lenderRouter = router({
     });
     return loans.map(loan => ({
       id: loan.id,
-      borrower: loan.borrower?.name || 'Unknown',
+      borrowerName: loan.borrower?.name || 'Unknown',
+      borrowerCollege: loan.borrower?.collegeName || 'Unknown',
+      borrowerYear: loan.borrower?.collegeYear || 1,
       amount: loan.amount,
+      remaining: loan.remaining,
+      dueAmount: loan.dueAmount,
       interest: loan.interestRate,
       dueDate: loan.nextDueDate.toISOString().split('T')[0],
       status: loan.status,

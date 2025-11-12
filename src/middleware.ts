@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = 'your-secret-key'; // Use env in production
-
-export const runtime = 'nodejs';
+import type { NextRequest as NextRequestType } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -21,13 +17,9 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
 
-    try {
-      const decoded = jwt.verify(tokenCookie, JWT_SECRET);
-      console.log('Token verified:', decoded);
-    } catch (err) {
-      console.log('Token invalid:', err);
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
+    // JWT verification is handled by tRPC context and API routes
+    // This middleware only checks for token presence to avoid Edge Runtime issues
+    console.log('Middleware - Token present, allowing access');
   }
 
   return NextResponse.next();
