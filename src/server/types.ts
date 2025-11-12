@@ -9,7 +9,8 @@ export { prisma };
 export type { User, Loan, Transaction, LenderAdvertisement, PaymentPlan } from '@prisma/client';
 
 export interface LoanUpdate {
-  type: 'newLoan' | 'payment' | 'funded' | 'paymentPlanCreated';
+  userId: number;
+  type: 'newLoan' | 'payment' | 'funded' | 'paymentPlanCreated' | 'paymentProcessed';
   loan?: Loan;
   paymentPlan?: PaymentPlan;
 }

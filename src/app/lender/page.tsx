@@ -6,6 +6,7 @@ import { trpc } from "../../utils/trpc";
 import "../borrower/borrower.css";
 import "./lender.css";
 import AdvertisementModal from "./AdvertisementModal";
+import { toast } from "sonner";
 
 export default function LenderDashboard() {
   const [currentPage, setCurrentPage] = useState("home");
@@ -13,9 +14,11 @@ export default function LenderDashboard() {
   const [amountFilter, setAmountFilter] = useState("all");
   const [durationFilter, setDurationFilter] = useState("all");
   const [collegeFilter, setCollegeFilter] = useState("all");
-   const [showBalanceModal, setShowBalanceModal] = useState(false);
-   const [showAdModal, setShowAdModal] = useState(false);
-   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
+    const [showBalanceModal, setShowBalanceModal] = useState(false);
+    const [showAdModal, setShowAdModal] = useState(false);
+    const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+    const [addFundsAmount, setAddFundsAmount] = useState('');
+    const [currentBalance, setCurrentBalance] = useState<number | null>(null);
    const router = useRouter();
 
   // Check authentication
@@ -39,15 +42,29 @@ export default function LenderDashboard() {
     collegeFilter,
   });
 
-  // tRPC mutations
-  const fundLoanMutation = trpc.lender.fundLoan.useMutation({
-    onSuccess: () => {
-      loanRequests.refetch();
-      activeLoans.refetch();
-    },
-  });
+   // tRPC mutations
+    const fundLoanMutation = trpc.lender.fundLoan.useMutation({
+      onSuccess: () => {
+        loanRequests.refetch();
+        activeLoans.refetch();
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    });
+    const addFundsMutation = trpc.lender.addFunds.useMutation({
+      onSuccess: () => {
+        setShowAddFundsModal(false);
+        setAddFundsAmount('');
+        lenderProfile.refetch();
+        toast.success('Funds added successfully');
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    });
 
-  // tRPC subscriptions
+   // tRPC subscriptions
   const loanUpdates = trpc.lender.onLoanUpdate.useSubscription();
   const balanceUpdate = trpc.lender.onBalanceUpdate.useSubscription();
 
@@ -317,59 +334,131 @@ export default function LenderDashboard() {
             </div>
            </div>
 
-           {/* Active Loans */}
-           <div className="active-loans-section">
-             <div className="card">
-               <div className="card-header">
-                 <h2>📋 Your Active Loans</h2>
-                 <p className="subtitle">Monitor your lent loans and repayments</p>
-               </div>
-               <div className="card-body">
-                 {activeLoans.data && activeLoans.data.length > 0 ? (
-                   <div className="loans-table">
-                     <table>
-                       <thead>
-                         <tr>
-                           <th>Loan ID</th>
-                           <th>Borrower</th>
-                           <th>Amount</th>
-                           <th>Progress</th>
-                           <th>Status</th>
-                         </tr>
-                       </thead>
-                       <tbody>
-                         {activeLoans.data.map((loan: any) => (
-                           <tr key={loan.id}>
-                             <td>{loan.id}</td>
-                             <td>{loan.borrowerName}</td>
-                             <td>₹{loan.amount}</td>
-                             <td>
-                               <div className="progress-cell">
-                                 <span>{loan.progressPercent}%</span>
-                                 <div className="progress-bar">
-                                   <div
-                                     className="progress-fill"
-                                     style={{ width: `${loan.progressPercent}%` }}
-                                   ></div>
-                                 </div>
+            {/* Active Loans */}
+            <div className="active-loans-section">
+              <div className="card">
+                <div className="card-header">
+                  <h2>💰 Your Active Loans</h2>
+                  <p className="subtitle">Monitor your lent loans and track repayments</p>
+                </div>
+                <div className="card-body">
+                  {activeLoans.data && activeLoans.data.length > 0 ? (
+                    <div className="loans-grid">
+                      {activeLoans.data.map((loan: any) => (
+                        <div key={loan.id} className="loan-card-modern">
+                          <div className="loan-card-header">
+                            <div className="loan-id-section">
+                              <div className="loan-id-icon">📄</div>
+                              <div className="loan-id-info">
+                                <div className="loan-id">#{loan.id}</div>
+                                <div className="loan-date">Started {formatDate(loan.createdAt)}</div>
+                              </div>
+                            </div>
+                            <span className={`status-badge-modern status-${loan.status.toLowerCase().replace(' ', '-')}`}>
+                              {loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
+                            </span>
+                          </div>
+
+                          <div className="loan-borrower-info">
+                            <div className="borrower-avatar-modern">
+                              {loan.borrowerName.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                            </div>
+                            <div className="borrower-details-modern">
+                              <div className="borrower-name">{loan.borrowerName}</div>
+                              <div className="borrower-college">{loan.borrowerCollege} • Year {loan.borrowerYear}</div>
+                            </div>
+                          </div>
+
+                          <div className="loan-stats-grid">
+                             <div className="stat-box">
+                               <div className="stat-icon">💵</div>
+                               <div className="stat-content">
+                                 <div className="stat-label">Loan Amount</div>
+                                 <div className="stat-value">₹{loan.amount.toLocaleString()}</div>
                                </div>
-                             </td>
-                             <td>
-                               <span className={`status-badge ${loan.status.toLowerCase()}`}>
-                                 {loan.status}
-                               </span>
-                             </td>
-                           </tr>
-                         ))}
-                       </tbody>
-                     </table>
-                   </div>
-                 ) : (
-                   <p className="no-loans">No active loans</p>
-                 )}
-               </div>
-             </div>
-           </div>
+                             </div>
+                             <div className="stat-box">
+                               <div className="stat-icon">💰</div>
+                               <div className="stat-content">
+                                 <div className="stat-label">Total Due</div>
+                                 <div className="stat-value">₹{loan.totalDueAmount?.toLocaleString()}</div>
+                               </div>
+                             </div>
+                             <div className="stat-box">
+                               <div className="stat-icon">📉</div>
+                               <div className="stat-content">
+                                 <div className="stat-label">Remaining</div>
+                                 <div className="stat-value">₹{loan.remaining.toLocaleString()}</div>
+                               </div>
+                             </div>
+                            <div className="stat-box">
+                              <div className="stat-icon">📅</div>
+                              <div className="stat-content">
+                                <div className="stat-label">Next Due</div>
+                                <div className="stat-value">{formatDate(loan.nextDueDate)}</div>
+                              </div>
+                            </div>
+                            <div className="stat-box">
+                              <div className="stat-icon">🎯</div>
+                              <div className="stat-content">
+                                <div className="stat-label">Due Amount</div>
+                                <div className="stat-value highlight">₹{loan.dueAmount.toLocaleString()}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="progress-section">
+                            <div className="progress-info">
+                              <span className="progress-label">Repayment Progress</span>
+                              <span className="progress-percent">{loan.progressPercent}%</span>
+                            </div>
+                            <div className="progress-bar-modern">
+                              <div
+                                className="progress-fill-modern"
+                                style={{ width: `${loan.progressPercent}%` }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          <div className="loan-details-grid">
+                            <div className="detail-item-modern">
+                              <span className="detail-icon">📈</span>
+                              <div className="detail-content">
+                                <span className="detail-label-modern">Interest Rate</span>
+                                <span className="detail-value-modern">{loan.interestRate}%</span>
+                              </div>
+                            </div>
+                            <div className="detail-item-modern">
+                              <span className="detail-icon">⏰</span>
+                              <div className="detail-content">
+                                <span className="detail-label-modern">Duration</span>
+                                <span className="detail-value-modern">{loan.duration} days</span>
+                              </div>
+                            </div>
+                            <div className="detail-item-modern">
+                              <span className="detail-icon">💎</span>
+                              <div className="detail-content">
+                                <span className="detail-label-modern">Earnings</span>
+                                <span className="detail-value-modern earnings">₹{loan.earnings.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state-modern">
+                      <div className="empty-icon">💰</div>
+                      <h3>No Active Loans</h3>
+                      <p>You haven't funded any loans yet. Browse available borrowers to start lending!</p>
+                      <button className="btn btn-primary" onClick={() => showPage("lending")}>
+                        Browse Borrowers
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
          </section>
 
          {/* Gamification Section */}
@@ -571,32 +660,134 @@ export default function LenderDashboard() {
             <p>Track repayments and manage your lending portfolio</p>
           </div>
 
-          <div className="loans-table">
-            <div className="table-header">
-              <div>Borrower</div>
-              <div>Amount</div>
-              <div>Interest</div>
-              <div>Due Date</div>
-              <div>Status</div>
-              <div>Earnings</div>
-            </div>
-            <div id="loansContainer">
-              {activeLoans.data?.map((loan: any) => (
-                 <div key={loan.id} className="table-row">
-                   <div>{loan.borrower}</div>
-                   <div>₹{loan.amount}</div>
-                   <div>{loan.interest}%</div>
-                   <div>{formatDate(loan.dueDate)}</div>
-                   <div>
-                     <span className={`status-badge status-${loan.status}`}>
-                       {loan.status.replace("-", " ")}
-                     </span>
-                   </div>
-                   <div className="amount-positive">₹{loan.earnings}</div>
-                 </div>
+          {activeLoans.data && activeLoans.data.length > 0 ? (
+            <div className="loans-grid">
+              {activeLoans.data.map((loan: any) => (
+                <div key={loan.id} className="loan-card-modern">
+                  <div className="loan-card-header">
+                    <div className="loan-id-section">
+                      <div className="loan-id-icon">📄</div>
+                      <div className="loan-id-info">
+                        <div className="loan-id">#{loan.id}</div>
+                        <div className="loan-date">Started {formatDate(loan.createdAt)}</div>
+                      </div>
+                    </div>
+                    <span className={`status-badge-modern status-${loan.status.toLowerCase().replace(' ', '-')}`}>
+                      {loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
+                    </span>
+                  </div>
+
+                  <div className="loan-borrower-info">
+                    <div className="borrower-avatar-modern">
+                      {loan.borrowerName.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                    </div>
+                    <div className="borrower-details-modern">
+                      <div className="borrower-name">{loan.borrowerName}</div>
+                      <div className="borrower-college">{loan.borrowerCollege} • Year {loan.borrowerYear}</div>
+                    </div>
+                  </div>
+
+                  <div className="loan-stats-grid">
+                    <div className="stat-box">
+                      <div className="stat-icon">💵</div>
+                      <div className="stat-content">
+                        <div className="stat-label">Loan Amount</div>
+                        <div className="stat-value">₹{loan.amount.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <div className="stat-box">
+                      <div className="stat-icon">📉</div>
+                      <div className="stat-content">
+                        <div className="stat-label">Remaining</div>
+                        <div className="stat-value">₹{loan.remaining.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <div className="stat-box">
+                      <div className="stat-icon">📅</div>
+                      <div className="stat-content">
+                        <div className="stat-label">Next Due</div>
+                        <div className="stat-value">{formatDate(loan.nextDueDate)}</div>
+                      </div>
+                    </div>
+                    <div className="stat-box">
+                      <div className="stat-icon">🎯</div>
+                      <div className="stat-content">
+                        <div className="stat-label">Due Amount</div>
+                        <div className="stat-value highlight">₹{loan.dueAmount.toLocaleString()}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="progress-section">
+                    <div className="progress-info">
+                      <span className="progress-label">Repayment Progress</span>
+                      <span className="progress-percent">{loan.progressPercent}%</span>
+                    </div>
+                    <div className="progress-bar-modern">
+                      <div
+                        className="progress-fill-modern"
+                        style={{ width: `${loan.progressPercent}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="loan-details-grid">
+                    <div className="detail-item-modern">
+                      <span className="detail-icon">📈</span>
+                      <div className="detail-content">
+                        <span className="detail-label-modern">Interest Rate</span>
+                        <span className="detail-value-modern">{loan.interestRate}%</span>
+                      </div>
+                    </div>
+                    <div className="detail-item-modern">
+                      <span className="detail-icon">⏰</span>
+                      <div className="detail-content">
+                        <span className="detail-label-modern">Duration</span>
+                        <span className="detail-value-modern">{loan.duration} days</span>
+                      </div>
+                    </div>
+                    <div className="detail-item-modern">
+                      <span className="detail-icon">💎</span>
+                      <div className="detail-content">
+                        <span className="detail-label-modern">Earnings</span>
+                        <span className="detail-value-modern earnings">₹{loan.earnings.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="loan-actions">
+                    <button
+                      className="btn btn-primary btn-small"
+                      onClick={() => {
+                        // For lenders, this could be a "Remind Borrower" or "View Payment History" action
+                        alert(`Payment reminder sent to ${loan.borrowerName} for loan #${loan.id}`);
+                      }}
+                    >
+                      📢 Remind Payment
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-small"
+                      onClick={() => {
+                        // Could open a modal with payment details or history
+                        alert(`Viewing payment history for loan #${loan.id}`);
+                      }}
+                    >
+                      📋 Payment History
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
+          ) : (
+            <div className="empty-state-modern">
+              <div className="empty-icon">💰</div>
+              <h3>No Active Loans</h3>
+              <p>You haven't funded any loans yet. Browse available borrowers to start lending!</p>
+              <button className="btn btn-primary" onClick={() => showPage("lending")}>
+                Browse Borrowers
+              </button>
+            </div>
+          )}
         </section>
 
         {/* Wallet Section */}
@@ -783,7 +974,7 @@ export default function LenderDashboard() {
               </div>
             </div>
             <div className="balance-actions">
-              <button className="btn btn-secondary">Add Funds</button>
+               <button className="btn btn-secondary" onClick={() => setShowAddFundsModal(true)}>Add Funds</button>
               <button className="btn btn-primary">View Transactions</button>
             </div>
           </div>
@@ -799,6 +990,50 @@ export default function LenderDashboard() {
           setShowAdModal(false);
         }}
       />
+
+      {/* Add Funds Modal */}
+      {showAddFundsModal && (
+        <div className="modal-overlay" onClick={() => setShowAddFundsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Add Funds to Wallet</h2>
+              <button className="modal-close" onClick={() => setShowAddFundsModal(false)}>×</button>
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (addFundsAmount) {
+                addFundsMutation.mutate({
+                  amount: parseInt(addFundsAmount)
+                });
+              }
+            }}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Amount to Add (₹)</label>
+                  <input
+                    type="number"
+                    value={addFundsAmount}
+                    onChange={(e) => setAddFundsAmount(e.target.value)}
+                    placeholder="Enter amount"
+                    min="1"
+                    max="100000"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAddFundsModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={addFundsMutation.isPending}>
+                  {addFundsMutation.isPending ? 'Adding Funds...' : 'Add Funds'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </>
   );
 }

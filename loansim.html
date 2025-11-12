@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LoanSim - Predict. Calculate. Decide Smartly.</title>
+  <style>
+    /* Design System Variables */
+    :root {
+      /* Ultra-Luxury Dark Theme Colors */
+      --deep-black: #000000;
+      --charcoal: #1a1a1a;
+      --dark-grey: #2a2a2a;
+      --silver-light: #E8E8E8;
+      --silver-mid: #D3D3D3;
+      --silver-dark: #C0C0C0;
+      --pure-white: #FFFFFF;
+      --grey-border: #404040;
+      --grey-subtle: #333333;
+      
+      /* Neon Accents */
+      --neon-blue: #00D4FF;
+      --neon-green: #00FF88;
+      --neon-red: #FF3366;
+      --neon-purple: #B84EFF;
+      
+      /* Glass effect */
+      --glass-bg: rgba(255, 255, 255, 0.05);
+      --glass-border: rgba(255, 255, 255, 0.1);
+      
+      /* Typography */
+      --font-family-base: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-family-base);
+      background: linear-gradient(135deg, var(--deep-black) 0%, var(--charcoal) 50%, var(--dark-grey) 100%);
+      color: var(--silver-light);
+      min-height: 100vh;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Header Section */
+    .header {
+      text-align: center;
+      padding: 40px 20px;
+      margin-bottom: 40px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .logo {
+      font-size: 48px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--silver-light), var(--pure-white), var(--silver-dark));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+      letter-spacing: 2px;
+    }
+
+    .tagline {
+      font-size: 20px;
+      color: var(--neon-blue);
+      font-weight: 300;
+      letter-spacing: 1px;
+      margin-bottom: 15px;
+    }
+
+    .description {
+      font-size: 14px;
+      color: var(--silver-mid);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* Main Content */
+    .main-content {
+      display: grid;
+      gap: 30px;
+    }
+
+    /* Glass Card */
+    .glass-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 30px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .glass-card:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .card-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--pure-white);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+      border-radius: 50%;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--deep-black);
+    }
+
+    /* Role Selection */
+    .role-selection {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .role-option {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .role-option input[type="radio"] {
+      display: none;
+    }
+
+    .role-label {
+      display: block;
+      padding: 20px;
+      background: var(--grey-subtle);
+      border: 2px solid var(--grey-border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--silver-mid);
+    }
+
+    .role-option input[type="radio"]:checked + .role-label {
+      background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(184, 78, 255, 0.2));
+      border-color: var(--neon-blue);
+      color: var(--pure-white);
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+    }
+
+    .role-label:hover {
+      border-color: var(--silver-dark);
+      transform: translateY(-2px);
+    }
+
+    .role-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    /* Form Inputs */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--silver-light);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .optional-badge {
+      font-size: 11px;
+      color: var(--neon-green);
+      background: rgba(0, 255, 136, 0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .form-input {
+      padding: 12px 16px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--grey-border);
+      border-radius: 8px;
+      color: var(--pure-white);
+      font-size: 16px;
+      transition: all 0.3s ease;
+      font-family: var(--font-family-base);
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--neon-blue);
+      box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+    }
+
+    .form-input::placeholder {
+      color: var(--silver-dark);
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 16px 40px;
+      font-size: 18px;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: var(--font-family-base);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+      color: var(--deep-black);
+      box-shadow: 0 4px 20px rgba(0, 212, 255, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(0, 212, 255, 0.6);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 2px solid var(--grey-border);
+      color: var(--silver-light);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--silver-light);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+
+    /* Results Section */
+    .results-section {
+      display: none;
+      margin-top: 40px;
+    }
+
+    .results-section.active {
+      display: block;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 25px;
+      margin-top: 20px;
+    }
+
+    .result-card {
+      background: linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(26, 26, 26, 0.6));
+      border: 2px solid var(--grey-border);
+      border-radius: 16px;
+      padding: 25px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .result-card.borrower {
+      border-color: var(--neon-red);
+      box-shadow: 0 8px 32px rgba(255, 51, 102, 0.2);
+    }
+
+    .result-card.lender {
+      border-color: var(--neon-green);
+      box-shadow: 0 8px 32px rgba(0, 255, 136, 0.2);
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--grey-border);
+    }
+
+    .result-icon {
+      font-size: 36px;
+    }
+
+    .result-role {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--pure-white);
+    }
+
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .result-item:last-child {
+      border-bottom: none;
+    }
+
+    .result-label {
+      font-size: 13px;
+      color: var(--silver-mid);
+      font-weight: 500;
+    }
+
+    .result-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--pure-white);
+    }
+
+    .result-value.highlight {
+      color: var(--neon-blue);
+      font-size: 20px;
+    }
+
+    .result-value.positive {
+      color: var(--neon-green);
+    }
+
+    .result-value.negative {
+      color: var(--neon-red);
+    }
+
+    /* Analysis Section */
+    .analysis-section {
+      margin-top: 30px;
+      padding: 25px;
+      background: linear-gradient(135deg, rgba(184, 78, 255, 0.1), rgba(0, 212, 255, 0.1));
+      border: 1px solid rgba(184, 78, 255, 0.3);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .analysis-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--pure-white);
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .analysis-item {
+      padding: 10px 0;
+      font-size: 14px;
+      color: var(--silver-light);
+      line-height: 1.6;
+      display: flex;
+      align-items: start;
+      gap: 10px;
+    }
+
+    .analysis-icon {
+      color: var(--neon-blue);
+      font-weight: 700;
+      min-width: 20px;
+    }
+
+    /* Info Tooltip */
+    .info-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      background: var(--neon-blue);
+      color: var(--deep-black);
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: help;
+      position: relative;
+    }
+
+    .info-icon:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 12px;
+      background: var(--charcoal);
+      border: 1px solid var(--grey-border);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--silver-light);
+      white-space: nowrap;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Error Messages */
+    .error-message {
+      display: none;
+      padding: 12px 16px;
+      background: rgba(255, 51, 102, 0.1);
+      border: 1px solid var(--neon-red);
+      border-radius: 8px;
+      color: var(--neon-red);
+      font-size: 14px;
+      margin-top: 20px;
+    }
+
+    .error-message.active {
+      display: block;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .logo {
+        font-size: 36px;
+      }
+
+      .tagline {
+        font-size: 16px;
+      }
+
+      .glass-card {
+        padding: 20px;
+      }
+
+      .role-selection {
+        flex-direction: column;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+      }
+
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Loading Animation */
+    @keyframes shimmer {
+      0% {
+        background-position: -1000px 0;
+      }
+      100% {
+        background-position: 1000px 0;
+      }
+    }
+
+    .shimmer {
+      animation: shimmer 2s infinite;
+      background: linear-gradient(to right, transparent 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%);
+      background-size: 1000px 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">💰 LoanSim</div>
+      <div class="tagline">Predict. Calculate. Decide Smartly.</div>
+      <div class="description">
+        An independent simulation tool that lets any student visualize financial outcomes before creating a deal. 
+        Understand exactly how much you'll gain or lose with transparent calculations.
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Step 1: Role Selection -->
+      <div class="glass-card">
+        <div class="card-title">
+          <span class="step-number">1</span>
+          Choose Your Role
+        </div>
+        <div class="role-selection">
+          <div class="role-option">
+            <input type="radio" id="borrower" name="role" value="borrower" checked>
+            <label for="borrower" class="role-label">
+              <span class="role-icon">👤</span>
+              <div>Borrower</div>
+            </label>
+          </div>
+          <div class="role-option">
+            <input type="radio" id="lender" name="role" value="lender">
+            <label for="lender" class="role-label">
+              <span class="role-icon">🏦</span>
+              <div>Lender</div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Loan Details -->
+      <div class="glass-card">
+        <div class="card-title">
+          <span class="step-number">2</span>
+          Enter Loan Details
+        </div>
+        <form id="loanForm">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="amount">
+                Loan Amount (₹)
+                <span class="info-icon" data-tooltip="Principal amount to be borrowed/lent">i</span>
+              </label>
+              <input type="number" id="amount" class="form-input" placeholder="e.g., 5000" min="1" step="1" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="duration">
+                Duration (Days)
+                <span class="info-icon" data-tooltip="Number of days for the loan period">i</span>
+              </label>
+              <input type="number" id="duration" class="form-input" placeholder="e.g., 30" min="1" step="1" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="rate">
+                Interest Rate (%)
+                <span class="info-icon" data-tooltip="Interest rate for the entire loan period">i</span>
+              </label>
+              <input type="number" id="rate" class="form-input" placeholder="e.g., 5" min="0" step="0.01" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="delayDays">
+                Delayed Return (Days)
+                <span class="optional-badge">OPTIONAL</span>
+              </label>
+              <input type="number" id="delayDays" class="form-input" placeholder="e.g., 5" min="0" step="1">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="delayRate">
+                Revised Interest Rate for Delay (%)
+                <span class="optional-badge">OPTIONAL</span>
+              </label>
+              <input type="number" id="delayRate" class="form-input" placeholder="e.g., 8" min="0" step="0.01">
+            </div>
+          </div>
+
+          <div class="error-message" id="errorMessage"></div>
+
+          <div class="button-group">
+            <button type="submit" class="btn btn-primary">⚡ Simulate Outcome</button>
+            <button type="button" class="btn btn-secondary" id="resetBtn">🔄 Reset</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Step 3 & 4: Results -->
+      <div class="results-section" id="resultsSection">
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="step-number">3</span>
+            Simulation Results
+          </div>
+          
+          <div class="results-grid" id="resultsGrid"></div>
+
+          <div class="analysis-section" id="analysisSection" style="display: none;">
+            <div class="analysis-title">
+              💡 Financial Analysis
+            </div>
+            <div id="analysisContent"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Get form elements
+    const loanForm = document.getElementById('loanForm');
+    const resetBtn = document.getElementById('resetBtn');
+    const errorMessage = document.getElementById('errorMessage');
+    const resultsSection = document.getElementById('resultsSection');
+    const resultsGrid = document.getElementById('resultsGrid');
+    const analysisSection = document.getElementById('analysisSection');
+    const analysisContent = document.getElementById('analysisContent');
+
+    // Form inputs
+    const roleInputs = document.querySelectorAll('input[name="role"]');
+    const amountInput = document.getElementById('amount');
+    const durationInput = document.getElementById('duration');
+    const rateInput = document.getElementById('rate');
+    const delayDaysInput = document.getElementById('delayDays');
+    const delayRateInput = document.getElementById('delayRate');
+
+    // Format number with Indian comma system
+    function formatIndianCurrency(num) {
+      return '₹' + num.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    }
+
+    // Calculate loan outcomes
+    function calculateOutcomes(principal, duration, rate, delayDays, delayRate) {
+      // Normal interest calculation: (Principal * Rate * Duration) / 100
+      const normalInterest = (principal * rate * duration) / 100;
+      const totalOnTime = principal + normalInterest;
+      
+      // Delay calculations
+      let delayInterest = 0;
+      let totalWithDelay = totalOnTime;
+      
+      if (delayDays > 0 && delayRate > 0) {
+        delayInterest = (principal * delayRate * delayDays) / 100;
+        totalWithDelay = totalOnTime + delayInterest;
+      }
+      
+      // Return date
+      const today = new Date();
+      const normalReturnDate = new Date(today);
+      normalReturnDate.setDate(normalReturnDate.getDate() + duration);
+      
+      const delayedReturnDate = new Date(normalReturnDate);
+      if (delayDays > 0) {
+        delayedReturnDate.setDate(delayedReturnDate.getDate() + delayDays);
+      }
+      
+      // ROI calculations
+      const normalROI = (normalInterest / principal) * 100;
+      const delayROI = ((normalInterest + delayInterest) / principal) * 100;
+      
+      return {
+        principal,
+        normalInterest,
+        totalOnTime,
+        delayInterest,
+        totalWithDelay,
+        normalReturnDate,
+        delayedReturnDate,
+        normalROI,
+        delayROI,
+        hasDelay: delayDays > 0 && delayRate > 0
+      };
+    }
+
+    // Format date
+    function formatDate(date) {
+      const options = { day: 'numeric', month: 'short', year: 'numeric' };
+      return date.toLocaleDateString('en-IN', options);
+    }
+
+    // Create result card
+    function createResultCard(role, data) {
+      const isBorrower = role === 'borrower';
+      const icon = isBorrower ? '👤' : '🏦';
+      const roleClass = isBorrower ? 'borrower' : 'lender';
+      const roleTitle = isBorrower ? 'Borrower' : 'Lender';
+      
+      let html = `
+        <div class="result-card ${roleClass}">
+          <div class="result-header">
+            <span class="result-icon">${icon}</span>
+            <div class="result-role">${roleTitle}</div>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">Principal Amount</span>
+            <span class="result-value">${formatIndianCurrency(data.principal)}</span>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">Normal Return Date</span>
+            <span class="result-value">${formatDate(data.normalReturnDate)}</span>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">Interest Amount</span>
+            <span class="result-value positive">${formatIndianCurrency(data.normalInterest)}</span>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">${isBorrower ? 'Total Payable' : 'Total Receivable'} (On Time)</span>
+            <span class="result-value highlight">${formatIndianCurrency(data.totalOnTime)}</span>
+          </div>
+      `;
+      
+      if (data.hasDelay) {
+        html += `
+          <div class="result-item">
+            <span class="result-label">Delayed Interest</span>
+            <span class="result-value negative">${formatIndianCurrency(data.delayInterest)}</span>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">Delayed Return Date</span>
+            <span class="result-value">${formatDate(data.delayedReturnDate)}</span>
+          </div>
+          
+          <div class="result-item">
+            <span class="result-label">${isBorrower ? 'Total After Delay' : 'Total After Delay'}</span>
+            <span class="result-value highlight negative">${formatIndianCurrency(data.totalWithDelay)}</span>
+          </div>
+        `;
+      }
+      
+      html += `
+          <div class="result-item">
+            <span class="result-label">ROI</span>
+            <span class="result-value positive">${data.normalROI.toFixed(2)}%</span>
+          </div>
+        </div>
+      `;
+      
+      return html;
+    }
+
+    // Create analysis section
+    function createAnalysis(data) {
+      if (!data.hasDelay) {
+        return '';
+      }
+      
+      const savings = data.totalWithDelay - data.totalOnTime;
+      const roiIncrease = data.delayROI - data.normalROI;
+      
+      let html = '';
+      
+      // For borrower perspective
+      html += `
+        <div class="analysis-item">
+          <span class="analysis-icon">💰</span>
+          <span><strong>For Borrower:</strong> If paid on time → You save ${formatIndianCurrency(savings)}. If delayed → You lose ${formatIndianCurrency(savings)} extra.</span>
+        </div>
+      `;
+      
+      // For lender perspective
+      html += `
+        <div class="analysis-item">
+          <span class="analysis-icon">📈</span>
+          <span><strong>For Lender:</strong> ROI increases from ${data.normalROI.toFixed(2)}% → ${data.delayROI.toFixed(2)}% with delay (additional ${roiIncrease.toFixed(2)}%).</span>
+        </div>
+      `;
+      
+      html += `
+        <div class="analysis-item">
+          <span class="analysis-icon">⚡</span>
+          <span><strong>Recommendation:</strong> Both parties benefit from on-time repayment. Delays cost borrowers more while increasing lender returns.</span>
+        </div>
+      `;
+      
+      return html;
+    }
+
+    // Handle form submission
+    loanForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      // Hide error
+      errorMessage.classList.remove('active');
+      
+      // Get values
+      const amount = parseFloat(amountInput.value);
+      const duration = parseInt(durationInput.value);
+      const rate = parseFloat(rateInput.value);
+      const delayDays = parseInt(delayDaysInput.value) || 0;
+      const delayRate = parseFloat(delayRateInput.value) || 0;
+      
+      // Validate required fields
+      if (!amount || amount <= 0) {
+        errorMessage.textContent = '⚠️ Please enter a valid loan amount.';
+        errorMessage.classList.add('active');
+        return;
+      }
+      
+      if (!duration || duration <= 0) {
+        errorMessage.textContent = '⚠️ Please enter a valid duration.';
+        errorMessage.classList.add('active');
+        return;
+      }
+      
+      if (rate < 0) {
+        errorMessage.textContent = '⚠️ Please enter a valid interest rate.';
+        errorMessage.classList.add('active');
+        return;
+      }
+      
+      // Validate delay fields
+      if ((delayDays > 0 && !delayRate) || (delayRate > 0 && !delayDays)) {
+        errorMessage.textContent = '⚠️ Both delay days and revised interest rate must be provided together.';
+        errorMessage.classList.add('active');
+        return;
+      }
+      
+      // Calculate outcomes
+      const outcomes = calculateOutcomes(amount, duration, rate, delayDays, delayRate);
+      
+      // Display results
+      resultsGrid.innerHTML = createResultCard('borrower', outcomes) + createResultCard('lender', outcomes);
+      
+      // Display analysis if delay exists
+      if (outcomes.hasDelay) {
+        analysisContent.innerHTML = createAnalysis(outcomes);
+        analysisSection.style.display = 'block';
+      } else {
+        analysisSection.style.display = 'none';
+      }
+      
+      // Show results section
+      resultsSection.classList.add('active');
+      
+      // Smooth scroll to results
+      setTimeout(() => {
+        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+    });
+
+    // Handle reset
+    resetBtn.addEventListener('click', function() {
+      loanForm.reset();
+      document.getElementById('borrower').checked = true;
+      errorMessage.classList.remove('active');
+      resultsSection.classList.remove('active');
+      resultsGrid.innerHTML = '';
+      analysisContent.innerHTML = '';
+    });
+  </script>
+</body>
+</html>

@@ -49,6 +49,7 @@ model Loan {
   nextDueDate   DateTime
   progressPercent Int
   dueAmount     Int
+  totalDueAmount Int?
 
   // Relations
   borrower      User      @relation("BorrowerLoans", fields: [borrowerId], references: [id])

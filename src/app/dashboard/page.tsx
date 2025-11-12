@@ -66,7 +66,7 @@ export default function DashboardPage() {
   const lenderData = lenderProfile.data;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-900">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -77,8 +77,8 @@ export default function DashboardPage() {
               onClick={() => setCurrentView('overview')}
               className={`pb-2 px-1 border-b-2 font-medium text-sm ${
                 currentView === 'overview'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-gray-400 text-white'
+                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
               }`}
             >
               Overview
@@ -87,8 +87,8 @@ export default function DashboardPage() {
               onClick={() => setCurrentView('borrow')}
               className={`pb-2 px-1 border-b-2 font-medium text-sm ${
                 currentView === 'borrow'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-gray-400 text-white'
+                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
               }`}
             >
               Borrow Money
@@ -97,8 +97,8 @@ export default function DashboardPage() {
               onClick={() => setCurrentView('lend')}
               className={`pb-2 px-1 border-b-2 font-medium text-sm ${
                 currentView === 'lend'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-gray-400 text-white'
+                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
               }`}
             >
               Lend Money
@@ -110,14 +110,14 @@ export default function DashboardPage() {
         {currentView === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Balance Card */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-black rounded-lg shadow p-6 border border-gray-600">
               <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <span className="text-green-600">💰</span>
+                <div className="p-2 bg-gray-700 rounded-lg">
+                  <span className="text-gray-300">💰</span>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Current Balance</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm font-medium text-gray-400">Current Balance</p>
+                  <p className="text-2xl font-bold text-white">
                     ₹{currentBalance || borrowerData?.currentBalance || lenderData?.walletBalance || 0}
                   </p>
                 </div>
@@ -125,14 +125,14 @@ export default function DashboardPage() {
             </div>
 
             {/* Active Loans Card */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-black rounded-lg shadow p-6 border border-gray-600">
               <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <span className="text-blue-600">📋</span>
+                <div className="p-2 bg-gray-700 rounded-lg">
+                  <span className="text-gray-300">📋</span>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Active Loans</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm font-medium text-gray-400">Active Loans</p>
+                  <p className="text-2xl font-bold text-white">
                     {(activeLoans.data?.length || 0) + (lenderLoans.data?.length || 0)}
                   </p>
                 </div>
@@ -140,14 +140,14 @@ export default function DashboardPage() {
             </div>
 
             {/* Credit Score Card */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-black rounded-lg shadow p-6 border border-gray-600">
               <div className="flex items-center">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <span className="text-yellow-600">⭐</span>
+                <div className="p-2 bg-gray-700 rounded-lg">
+                  <span className="text-gray-300">⭐</span>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Credit Score</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm font-medium text-gray-400">Credit Score</p>
+                  <p className="text-2xl font-bold text-white">
                     {borrowerData?.creditScore || lenderData?.trustScore?.split('/')[0] || 'N/A'}
                   </p>
                 </div>
@@ -155,23 +155,23 @@ export default function DashboardPage() {
             </div>
 
             {/* Recent Transactions */}
-            <div className="bg-white rounded-lg shadow p-6 md:col-span-2 lg:col-span-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Transactions</h3>
+            <div className="bg-black rounded-lg shadow p-6 md:col-span-2 lg:col-span-3 border border-gray-600">
+              <h3 className="text-lg font-medium text-white mb-4">Recent Transactions</h3>
               <div className="space-y-3">
                 {transactions.data && transactions.data.length > 0 ? (
                   transactions.data.slice(0, 5).map((txn, index) => (
-                    <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
+                    <div key={index} className="flex justify-between items-center py-2 border-b border-gray-500 last:border-b-0">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{txn.type}</p>
-                        <p className="text-xs text-gray-500">{txn.date}</p>
+                        <p className="text-sm font-medium text-white">{txn.type}</p>
+                        <p className="text-xs text-gray-400">{txn.date}</p>
                       </div>
-                      <span className={`text-sm font-medium ${txn.positive ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className={`text-sm font-medium ${txn.positive ? 'text-gray-300' : 'text-gray-400'}`}>
                         {txn.amount}
                       </span>
                     </div>
                   ))
                 ) : (
-                  <p className="text-gray-500 text-sm">No transactions yet</p>
+                  <p className="text-gray-400 text-sm">No transactions yet</p>
                 )}
               </div>
             </div>
@@ -180,11 +180,11 @@ export default function DashboardPage() {
 
         {currentView === 'borrow' && (
           <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Borrow Money</h2>
-            <p className="text-gray-600 mb-8">Access loans from fellow students</p>
+            <h2 className="text-2xl font-bold text-white mb-4">Borrow Money</h2>
+            <p className="text-gray-400 mb-8">Access loans from fellow students</p>
             <button
               onClick={() => router.push('/borrower')}
-              className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+              className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-500"
             >
               Go to Borrower Dashboard
             </button>
@@ -193,11 +193,11 @@ export default function DashboardPage() {
 
         {currentView === 'lend' && (
           <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Lend Money</h2>
-            <p className="text-gray-600 mb-8">Help fellow students and earn interest</p>
+            <h2 className="text-2xl font-bold text-white mb-4">Lend Money</h2>
+            <p className="text-gray-400 mb-8">Help fellow students and earn interest</p>
             <button
               onClick={() => router.push('/lender')}
-              className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+              className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-500"
             >
               Go to Lender Dashboard
             </button>

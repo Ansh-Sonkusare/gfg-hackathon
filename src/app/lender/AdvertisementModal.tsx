@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { trpc } from '../../utils/trpc';
+import { toast } from 'sonner';
 
 interface AdvertisementModalProps {
   isOpen: boolean;
@@ -20,21 +21,24 @@ export default function AdvertisementModal({ isOpen, onClose, onSuccess }: Adver
     targetAudience: 'All Students'
   });
 
-  const createAdMutation = trpc.advertisement.createAdvertisement.useMutation({
-    onSuccess: () => {
-      onSuccess();
-      onClose();
-      setFormData({
-        minAmount: '',
-        maxAmount: '',
-        interestRate: '',
-        minDuration: '',
-        maxDuration: '',
-        riskTolerance: 'Medium',
-        targetAudience: 'All Students'
-      });
-    }
-  });
+   const createAdMutation = trpc.advertisement.createAdvertisement.useMutation({
+     onSuccess: () => {
+       onSuccess();
+       onClose();
+       setFormData({
+         minAmount: '',
+         maxAmount: '',
+         interestRate: '',
+         minDuration: '',
+         maxDuration: '',
+         riskTolerance: 'Medium',
+         targetAudience: 'All Students'
+       });
+     },
+     onError: (error) => {
+       toast.error(error.message);
+     }
+   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

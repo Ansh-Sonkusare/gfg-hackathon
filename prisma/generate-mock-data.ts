@@ -11,8 +11,16 @@ const durations = [7, 14, 21, 30];
 const targetAudiences = ['All Students', 'College Students', 'Graduate Students', 'First Year Students'];
 const frequencies = ['daily', 'weekly', 'monthly'];
 
+function getRandomInt(index: number, max: number): number {
+  return (index * 31) % max;
+}
+
+function getRandomFloat(index: number): number {
+  return ((index * 31) % 100) / 100;
+}
+
 function generateEmail(name: string, id: number): string {
-  const randomSuffix = Math.floor(Math.random() * 10000);
+  const randomSuffix = getRandomInt(id, 10000);
   return `${name.toLowerCase().replace(' ', '')}${id}${randomSuffix}@example.com`;
 }
 
@@ -27,27 +35,27 @@ async function generateMockData(count: number = 50) {
   console.log(`Generating ${count} mock users...`);
 
   for (let i = 6; i <= count + 5; i++) { // Start from 6 to avoid conflicts with existing
-    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+    const firstName = firstNames[getRandomInt(i, firstNames.length)];
+    const lastName = lastNames[getRandomInt(i, lastNames.length)];
     const name = `${firstName} ${lastName}`;
     const email = generateEmail(name, i);
-    const college = colleges[Math.floor(Math.random() * colleges.length)];
-    const collegeYear = Math.floor(Math.random() * 4) + 1;
-    const creditScore = Math.floor(Math.random() * 350) + 550; // 550-900
-    const trustBadge = Math.random() > 0.7;
-    const currentBalance = Math.floor(Math.random() * 20000) + 500;
+    const college = colleges[getRandomInt(i, colleges.length)];
+    const collegeYear = getRandomInt(i, 4) + 1;
+    const creditScore = getRandomInt(i, 350) + 550; // 550-900
+    const trustBadge = getRandomFloat(i) > 0.7;
+    const currentBalance = getRandomInt(i, 20000) + 500;
     const reputation = creditScore > 750 ? 'Excellent' : creditScore > 650 ? 'Good' : 'Fair';
-    const emergencyCredit = Math.floor(Math.random() * 1000) + 100;
-    const riskTolerance = riskLevels[Math.floor(Math.random() * riskLevels.length)];
-    const loanAmount = amounts[Math.floor(Math.random() * amounts.length)];
-    const loanDuration = durations[Math.floor(Math.random() * durations.length)];
+    const emergencyCredit = getRandomInt(i, 1000) + 100;
+    const riskTolerance = riskLevels[getRandomInt(i, riskLevels.length)];
+    const loanAmount = amounts[getRandomInt(i, amounts.length)];
+    const loanDuration = durations[getRandomInt(i, durations.length)];
     try {
        await prisma.user.create({
         data: {
           name,
           email,
           password: 'password123',
-          role: Math.random() > 0.5 ? 'borrower' : 'lender',
+          role: getRandomFloat(i) > 0.5 ? 'borrower' : 'lender',
           collegeName: college,
           collegeYear,
           creditScore,
@@ -85,31 +93,43 @@ async function generateMockData(count: number = 50) {
 
   for (const borrower of borrowers) {
     // Randomly decide if this borrower requests a loan (40% chance)
-    if (Math.random() > 0.6) {
+    if (getRandomFloat(borrower.id) > 0.6) {
       const amount = borrower.loanAmount;
       const duration = borrower.loanDuration;
-      const dueAmount = Math.round(amount / duration);
+      const interestRate = parseFloat((getRandomFloat(borrower.id) * 4 + 6).toFixed(2)); // 6-10% interest rate with 2 decimals
+
+      // Calculate monthly interest and total amount (same logic as borrower router)
+      const numberOfMonths = Math.ceil(duration / 30);
+      const monthlyInterestRate = interestRate / 12; // Convert annual rate to monthly
+      const monthlyPrincipal = amount / numberOfMonths;
+      const monthlyInterest = amount * monthlyInterestRate;
+      const dueAmount = Math.round(monthlyPrincipal + monthlyInterest);
+
+      // Total amount due = principal + total interest over loan period
+      const totalInterest = monthlyInterest * numberOfMonths;
+      const totalDueAmount = Math.round(amount + totalInterest);
 
       try {
         const loan = await prisma.loan.create({
           data: {
             borrowerId: borrower.id,
             amount,
-            remaining: amount,
-            interestRate: 0.08, // 8%
+            remaining: totalDueAmount, // Now includes interest
+            interestRate,
             status: 'pending',
             loanType: 'personal',
             nextDueDate: new Date(Date.now() + duration * 7 * 24 * 60 * 60 * 1000), // weeks
             progressPercent: 0,
             dueAmount,
+            totalDueAmount,
           },
         });
 
         // Randomly fund the loan (50% chance)
-        if (Math.random() > 0.5) {
+        if (getRandomFloat(borrower.id) > 0.5) {
           const availableLenders = lenders.filter(l => l.currentBalance >= amount);
           if (availableLenders.length > 0) {
-            const lender = availableLenders[Math.floor(Math.random() * availableLenders.length)];
+            const lender = availableLenders[getRandomInt(borrower.id, availableLenders.length)];
 
             await prisma.loan.update({
               where: { id: loan.id },
@@ -145,10 +165,10 @@ async function generateMockData(count: number = 50) {
             });
 
             // Randomly add some payments
-            if (Math.random() > 0.5) {
-              const progressPercent = Math.floor(Math.random() * 50) + 10; // 10-60%
-              const paidAmount = Math.floor(amount * progressPercent / 100);
-              const remaining = amount - paidAmount;
+            if (getRandomFloat(borrower.id) > 0.5) {
+              const progressPercent = getRandomInt(borrower.id, 50) + 10; // 10-60%
+              const paidAmount = Math.floor(totalDueAmount * progressPercent / 100);
+              const remaining = totalDueAmount - paidAmount;
 
               await prisma.loan.update({
                 where: { id: loan.id },
@@ -185,14 +205,14 @@ async function generateMockData(count: number = 50) {
   // Generate advertisements for lenders
   for (const lender of lenders) {
     // Randomly decide if this lender creates advertisements (60% chance)
-    if (Math.random() > 0.4) {
-      const numAds = Math.floor(Math.random() * 3) + 1; // 1-3 ads per lender
+    if (getRandomFloat(lender.id) > 0.4) {
+      const numAds = getRandomInt(lender.id, 3) + 1; // 1-3 ads per lender
 
-      for (let i = 0; i < numAds; i++) {
-        const minAmount = amounts[Math.floor(Math.random() * amounts.length)];
-        const maxAmount = amounts[Math.floor(Math.random() * amounts.length)];
-        const minDuration = durations[Math.floor(Math.random() * durations.length)];
-        const maxDuration = durations[Math.floor(Math.random() * durations.length)];
+      for (let j = 0; j < numAds; j++) {
+        const minAmount = amounts[getRandomInt(lender.id + j, amounts.length)];
+        const maxAmount = amounts[getRandomInt(lender.id + j, amounts.length)];
+        const minDuration = durations[getRandomInt(lender.id + j, durations.length)];
+        const maxDuration = durations[getRandomInt(lender.id + j, durations.length)];
 
         try {
           await prisma.lenderAdvertisement.create({
@@ -200,13 +220,13 @@ async function generateMockData(count: number = 50) {
               lenderId: lender.id,
               minAmount: Math.min(minAmount, maxAmount),
               maxAmount: Math.max(minAmount, maxAmount),
-              interestRate: parseFloat((Math.random() * 5 + 5).toFixed(1)), // 5-10%
+                interestRate: parseFloat((getRandomFloat(lender.id + j) * 4 + 6).toFixed(2)), // 6-10% interest rate with 2 decimals
               minDuration: Math.min(minDuration, maxDuration),
               maxDuration: Math.max(minDuration, maxDuration),
-              riskTolerance: riskLevels[Math.floor(Math.random() * riskLevels.length)],
-              targetAudience: targetAudiences[Math.floor(Math.random() * targetAudiences.length)],
-              isActive: Math.random() > 0.2, // 80% active
-              priority: Math.floor(Math.random() * 10), // 0-9 priority
+              riskTolerance: riskLevels[getRandomInt(lender.id + j, riskLevels.length)],
+              targetAudience: targetAudiences[getRandomInt(lender.id + j, targetAudiences.length)],
+              isActive: getRandomFloat(lender.id + j) > 0.2, // 80% active
+              priority: getRandomInt(lender.id + j, 10), // 0-9 priority
             },
           });
         } catch (error) {
@@ -225,10 +245,10 @@ async function generateMockData(count: number = 50) {
 
   for (const loan of activeLoans) {
     // Randomly decide if this loan has a payment plan (70% chance)
-    if (Math.random() > 0.3) {
-      const frequency = frequencies[Math.floor(Math.random() * frequencies.length)];
-      const amount = Math.floor(loan.dueAmount * (0.8 + Math.random() * 0.4)); // 80-120% of due amount
-      const numberOfInstallments = Math.floor(Math.random() * 12) + 1; // 1-12 installments
+    if (getRandomFloat(loan.id) > 0.3) {
+      const frequency = frequencies[getRandomInt(loan.id, frequencies.length)];
+      const amount = Math.floor(loan.dueAmount * (0.8 + getRandomFloat(loan.id) * 0.4)); // 80-120% of due amount
+      const numberOfInstallments = getRandomInt(loan.id, 12) + 1; // 1-12 installments
 
       let nextPaymentDate = new Date();
       let endDate = new Date();
@@ -255,7 +275,7 @@ async function generateMockData(count: number = 50) {
             userId: loan.borrowerId,
             frequency,
             amount,
-            isActive: Math.random() > 0.1, // 90% active
+            isActive: getRandomFloat(loan.id) > 0.1, // 90% active
             nextPaymentDate,
             endDate,
           },

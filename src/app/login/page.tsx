@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trpc } from '../../utils/trpc';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,19 +15,19 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: (data) => {
-      console.log('Login successful, setting token:', data.token);
-      localStorage.setItem('userId', data.user.id.toString());
-      localStorage.setItem('userRole', data.user.role);
-      document.cookie = `token=${data.token}; path=/; max-age=86400`; // 1 day
-      console.log('Cookie set, redirecting to dashboard');
-      router.push('/dashboard');
-    },
-    onError: (error) => {
-      setError(error.message);
-    },
-  });
+   const loginMutation = trpc.auth.login.useMutation({
+     onSuccess: (data) => {
+       console.log('Login successful, setting token:', data.token);
+        localStorage.setItem('userId', data.user.id.toString());
+       document.cookie = `token=${data.token}; path=/; max-age=86400`; // 1 day
+       console.log('Cookie set, redirecting to dashboard');
+       router.push('/dashboard');
+     },
+     onError: (error) => {
+       setError(error.message);
+       toast.error(error.message);
+     },
+   });
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -304,9 +305,9 @@ export default function LoginPage() {
         <div className="text-center mt-6">
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
-            <button className="text-purple-600 hover:text-purple-700 font-medium transition-colors">
-              Contact your college administrator
-            </button>
+            <a href="/signup" className="text-purple-600 hover:text-purple-700 font-medium transition-colors">
+              Sign up here
+            </a>
           </p>
         </div>
       </div>

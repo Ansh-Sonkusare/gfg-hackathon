@@ -281,12 +281,10 @@ export const lenderRouter = router({
         loanId: loan.id
       });
 
-      return { success: true, message: `Loan funded for ${loan.borrower?.name}`, loanId: loan.id };
-    }),
+        return { success: true, message: `Loan funded for ${loan.borrower?.name}`, loanId: loan.id };
+      }),
 
-
-
-  // Subscription for loan updates
+   // Subscription for loan updates
   onLoanUpdate: protectedProcedure.subscription(({ ctx }) => {
     return observable<LoanUpdate>((emit) => {
       const onUpdate = (data: LoanUpdate & { userId: number }) => {

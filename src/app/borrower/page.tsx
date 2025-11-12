@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import './borrower.css';
 import { trpc } from '../../utils/trpc';
 import { LenderWithAdvertisement } from '../../server/types';
+import { toast } from 'sonner';
 
 export default function BorrowerDashboard() {
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -15,10 +16,14 @@ export default function BorrowerDashboard() {
   const [loanInterestRate, setLoanInterestRate] = useState('');
   const [loanDuration, setLoanDuration] = useState(7);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showManualPaymentModal, setShowManualPaymentModal] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
   const [paymentFrequency, setPaymentFrequency] = useState('monthly');
   const [numberOfInstallments, setNumberOfInstallments] = useState(1);
   const [paymentAmount, setPaymentAmount] = useState('');
+   const [manualPaymentAmount, setManualPaymentAmount] = useState('');
+   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+   const [addFundsAmount, setAddFundsAmount] = useState('');
 
   const router = useRouter();
 
@@ -39,24 +44,53 @@ export default function BorrowerDashboard() {
   // tRPC subscriptions
   const balanceUpdate = trpc.borrower.onBalanceUpdate.useSubscription();
 
-   // tRPC mutations
-    const requestLoanMutation = trpc.borrower.requestLoan.useMutation({
-      onSuccess: () => {
-        setShowLoanModal(false);
-        setSelectedLender(null);
-        setLoanAmount('');
-        setLoanInterestRate('');
-        setLoanDuration(7);
-        activeLoans.refetch();
-      },
-    });
-   const makePaymentMutation = trpc.borrower.makePayment.useMutation({
-     onSuccess: () => {
-       activeLoans.refetch();
-     },
-   });
+    // tRPC mutations
+     const requestLoanMutation = trpc.borrower.requestLoan.useMutation({
+       onSuccess: () => {
+         setShowLoanModal(false);
+         setSelectedLender(null);
+         setLoanAmount('');
+         setLoanInterestRate('');
+         setLoanDuration(7);
+         activeLoans.refetch();
+       },
+       onError: (error) => {
+         toast.error(error.message);
+       },
+     });
+     const makePaymentMutation = trpc.borrower.makePayment.useMutation({
+       onSuccess: () => {
+         activeLoans.refetch();
+       },
+       onError: (error) => {
+         toast.error(error.message);
+        },
+     });
+     const processPaymentMutation = trpc.borrower.processPayment.useMutation({
+       onSuccess: (data) => {
+         setShowManualPaymentModal(false);
+         setManualPaymentAmount('');
+         setCurrentBalance(data.newBalance);
+         activeLoans.refetch();
+         toast.success(data.message);
+       },
+       onError: (error) => {
+         toast.error(error.message);
+       },
+      });
+      const addFundsMutation = trpc.borrower.addFunds.useMutation({
+        onSuccess: () => {
+          setShowAddFundsModal(false);
+          setAddFundsAmount('');
+          borrowerProfile.refetch();
+          toast.success('Funds added successfully');
+        },
+        onError: (error) => {
+          toast.error(error.message);
+        },
+      });
 
-  const borrowerData = borrowerProfile.data;
+   const borrowerData = borrowerProfile.data;
 
   // Update balance on subscription
   useEffect(() => {
@@ -252,20 +286,27 @@ export default function BorrowerDashboard() {
                       </div>
 
                       <div className="loan-stats-grid">
-                        <div className="stat-box">
-                          <div className="stat-icon">💵</div>
-                          <div className="stat-content">
-                            <div className="stat-label">Loan Amount</div>
-                            <div className="stat-value">₹{loan.amount}</div>
-                          </div>
-                        </div>
-                        <div className="stat-box">
-                          <div className="stat-icon">📉</div>
-                          <div className="stat-content">
-                            <div className="stat-label">Remaining</div>
-                            <div className="stat-value">₹{loan.remaining}</div>
-                          </div>
-                        </div>
+                         <div className="stat-box">
+                           <div className="stat-icon">💵</div>
+                           <div className="stat-content">
+                             <div className="stat-label">Loan Amount</div>
+                             <div className="stat-value">₹{loan.amount}</div>
+                           </div>
+                         </div>
+                         <div className="stat-box">
+                           <div className="stat-icon">💰</div>
+                           <div className="stat-content">
+                             <div className="stat-label">Total Due</div>
+                             <div className="stat-value">₹{loan.totalDueAmount}</div>
+                           </div>
+                         </div>
+                         <div className="stat-box">
+                           <div className="stat-icon">📉</div>
+                           <div className="stat-content">
+                             <div className="stat-label">Remaining</div>
+                             <div className="stat-value">₹{loan.remaining}</div>
+                           </div>
+                         </div>
                         <div className="stat-box">
                           <div className="stat-icon">📅</div>
                           <div className="stat-content">
@@ -295,18 +336,28 @@ export default function BorrowerDashboard() {
                         </div>
                       </div>
 
-                      <div className="loan-actions">
-                        <button
-                          className="btn btn-primary btn-full"
-                          onClick={() => {
-                            setSelectedLoanId(loan.id);
-                            setPaymentAmount(loan.dueAmount.toString());
-                            setShowPaymentModal(true);
-                          }}
-                        >
-                          Set Payment Plan
-                        </button>
-                      </div>
+                       <div className="loan-actions">
+                         <button
+                           className="btn btn-secondary btn-half"
+                           onClick={() => {
+                             setSelectedLoanId(loan.id);
+                             setManualPaymentAmount('');
+                             setShowManualPaymentModal(true);
+                           }}
+                         >
+                           Pay Now
+                         </button>
+                         <button
+                           className="btn btn-primary btn-half"
+                           onClick={() => {
+                             setSelectedLoanId(loan.id);
+                             setPaymentAmount(loan.dueAmount.toString());
+                             setShowPaymentModal(true);
+                           }}
+                         >
+                           Set Payment Plan
+                         </button>
+                       </div>
                     </div>
                   ))}
                 </div>
@@ -592,7 +643,7 @@ export default function BorrowerDashboard() {
                   <span className="wallet-label">Available Balance</span>
                   <span className="wallet-amount">₹3,450</span>
                 </div>
-                <button className="btn btn-outline" id="addFundsBtn">+ Add Funds</button>
+                <button className="btn btn-outline" id="addFundsBtn" onClick={() => setShowAddFundsModal(true)}>+ Add Funds</button>
                 <div className="wallet-actions">
                   <h4>Quick Actions</h4>
                   <button className="action-btn">Withdraw</button>
@@ -672,23 +723,24 @@ export default function BorrowerDashboard() {
            setSelectedLender(null);
          }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-             <div className="modal-header">
-               <h2>Request Loan from {selectedLender?.name || 'Lender'}</h2>
-               <button className="modal-close" onClick={() => {
-                 setShowLoanModal(false);
-                 setSelectedLender(null);
-               }}>×</button>
-             </div>
+              <div className="modal-header">
+                <h2>Request Loan{selectedLender ? ` from ${selectedLender.name}` : ' (Open Request)'}</h2>
+                <button className="modal-close" onClick={() => {
+                  setShowLoanModal(false);
+                  setSelectedLender(null);
+                }}>×</button>
+              </div>
                <form onSubmit={(e) => {
-                e.preventDefault();
-                if (loanAmount && selectedLender) {
-                  requestLoanMutation.mutate({
-                    lenderId: selectedLender.id,
-                    amount: parseInt(loanAmount),
-                    duration: loanDuration
-                  });
-                }
-              }}>
+                 e.preventDefault();
+                 if (loanAmount && loanInterestRate) {
+                   requestLoanMutation.mutate({
+                     lenderId: selectedLender?.id,
+                     amount: parseInt(loanAmount),
+                     duration: loanDuration,
+                     interestRate: parseFloat(loanInterestRate)
+                   });
+                 }
+               }}>
                <div className="modal-body">
                   <div className="form-group">
                     <label>Principal Amount (₹)</label>
@@ -702,20 +754,20 @@ export default function BorrowerDashboard() {
                       required
                     />
                   </div>
-                  <div className="form-group">
-                    <label>Interest Rate (%)</label>
-                    <input
-                      type="number"
-                      value={loanInterestRate}
-                      onChange={(e) => setLoanInterestRate(e.target.value)}
-                      placeholder="Enter interest rate (e.g., 5.5)"
-                      min="0"
-                      max="50"
-                      step="0.1"
-                      required
-                      readOnly={!!selectedLender}
-                    />
-                  </div>
+                   <div className="form-group">
+                     <label>Interest Rate (%)</label>
+                     <input
+                       type="number"
+                       value={loanInterestRate}
+                       onChange={(e) => setLoanInterestRate(e.target.value)}
+                       placeholder={selectedLender ? "Rate from lender advertisement" : "Enter interest rate (e.g., 5.5)"}
+                       min="0"
+                       max="50"
+                       step="0.1"
+                       required
+                       readOnly={!!selectedLender}
+                     />
+                   </div>
                   <div className="form-group">
                     <label>Duration (Days)</label>
                     <input
@@ -742,79 +794,193 @@ export default function BorrowerDashboard() {
         </div>
         )}
 
-        {/* Payment Plan Modal */}
-        {showPaymentModal && (
-          <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>Set Payment Plan</h2>
-                <button className="modal-close" onClick={() => setShowPaymentModal(false)}>×</button>
-              </div>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                if (selectedLoanId && paymentAmount && paymentFrequency && numberOfInstallments) {
-                  makePaymentMutation.mutate({
-                    loanId: selectedLoanId,
-                    amount: parseInt(paymentAmount),
-                    frequency: paymentFrequency,
-                    numberOfInstallments: numberOfInstallments
-                  });
-                  setShowPaymentModal(false);
-                  setSelectedLoanId(null);
-                  setPaymentAmount('');
-                  setPaymentFrequency('monthly');
-                  setNumberOfInstallments(1);
-                }
-              }}>
-                <div className="modal-body">
-                  <div className="form-group">
-                    <label>Payment Amount (₹)</label>
-                    <input
-                      type="number"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      placeholder="Enter payment amount"
-                      min="1"
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Payment Frequency</label>
-                    <select
-                      value={paymentFrequency}
-                      onChange={(e) => setPaymentFrequency(e.target.value)}
-                      required
-                    >
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Number of Installments</label>
-                    <input
-                      type="number"
-                      value={numberOfInstallments}
-                      onChange={(e) => setNumberOfInstallments(parseInt(e.target.value))}
-                      placeholder="Enter number of payments"
-                      min="1"
-                      max="100"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentModal(false)}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" disabled={makePaymentMutation.isPending}>
-                    {makePaymentMutation.isPending ? 'Creating Plan...' : 'Create Payment Plan'}
-                  </button>
-                </div>
-              </form>
+         {/* Payment Plan Modal */}
+         {showPaymentModal && (
+           <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
+             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+               <div className="modal-header">
+                 <h2>Set Payment Plan</h2>
+                 <button className="modal-close" onClick={() => setShowPaymentModal(false)}>×</button>
+               </div>
+               <form onSubmit={(e) => {
+                 e.preventDefault();
+                 if (selectedLoanId && paymentAmount && paymentFrequency && numberOfInstallments) {
+                   makePaymentMutation.mutate({
+                     loanId: selectedLoanId,
+                     amount: parseInt(paymentAmount),
+                     frequency: paymentFrequency,
+                     numberOfInstallments: numberOfInstallments
+                   });
+                   setShowPaymentModal(false);
+                   setSelectedLoanId(null);
+                   setPaymentAmount('');
+                   setPaymentFrequency('monthly');
+                   setNumberOfInstallments(1);
+                 }
+               }}>
+                 <div className="modal-body">
+                   <div className="form-group">
+                     <label>Payment Amount (₹)</label>
+                     <input
+                       type="number"
+                       value={paymentAmount}
+                       onChange={(e) => setPaymentAmount(e.target.value)}
+                       placeholder="Enter payment amount"
+                       min="1"
+                       required
+                     />
+                   </div>
+                   <div className="form-group">
+                     <label>Payment Frequency</label>
+                      <select
+                        value={paymentFrequency}
+                        onChange={(e) => setPaymentFrequency(e.target.value)}
+                        required
+                      >
+                        <option value="hourly">Hourly</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                   </div>
+                   <div className="form-group">
+                     <label>Number of Installments</label>
+                     <input
+                       type="number"
+                       value={numberOfInstallments}
+                       onChange={(e) => setNumberOfInstallments(parseInt(e.target.value))}
+                       placeholder="Enter number of payments"
+                       min="1"
+                       max="100"
+                       required
+                     />
+                   </div>
+                 </div>
+                 <div className="modal-footer">
+                   <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentModal(false)}>
+                     Cancel
+                   </button>
+                   <button type="submit" className="btn btn-primary" disabled={makePaymentMutation.isPending}>
+                     {makePaymentMutation.isPending ? 'Creating Plan...' : 'Create Payment Plan'}
+                   </button>
+                 </div>
+               </form>
+             </div>
+           </div>
+         )}
+
+         {/* Manual Payment Modal */}
+         {showManualPaymentModal && (
+           <div className="modal-overlay" onClick={() => setShowManualPaymentModal(false)}>
+             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+               <div className="modal-header">
+                 <h2>Make Payment</h2>
+                 <button className="modal-close" onClick={() => setShowManualPaymentModal(false)}>×</button>
+               </div>
+               <div className="modal-body">
+                 <div className="payment-info">
+                   <div className="balance-display">
+                     <span className="balance-label">Your Balance:</span>
+                     <span className="balance-amount">₹{currentBalance || borrowerData?.currentBalance || 0}</span>
+                   </div>
+                   {selectedLoanId && activeLoans.data && (
+                     <div className="loan-payment-info">
+                       <h4>Loan #{selectedLoanId}</h4>
+                       <div className="payment-details">
+                         <div className="detail-item">
+                           <span>Remaining Amount:</span>
+                           <span>₹{activeLoans.data.find((loan: any) => loan.id === selectedLoanId)?.remaining || 0}</span>
+                         </div>
+                         <div className="detail-item">
+                           <span>Due Amount:</span>
+                           <span>₹{activeLoans.data.find((loan: any) => loan.id === selectedLoanId)?.dueAmount || 0}</span>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+                 <form onSubmit={(e) => {
+                   e.preventDefault();
+                   if (selectedLoanId && manualPaymentAmount) {
+                     const amount = parseInt(manualPaymentAmount);
+                     if (amount > (currentBalance || borrowerData?.currentBalance || 0)) {
+                       toast.error('Insufficient balance');
+                       return;
+                     }
+                     processPaymentMutation.mutate({
+                       loanId: selectedLoanId,
+                       amount: amount
+                     });
+                   }
+                 }}>
+                   <div className="form-group">
+                     <label>Payment Amount (₹)</label>
+                     <input
+                       type="number"
+                       value={manualPaymentAmount}
+                       onChange={(e) => setManualPaymentAmount(e.target.value)}
+                       placeholder="Enter payment amount"
+                       min="1"
+                       max={currentBalance || borrowerData?.currentBalance || 0}
+                       required
+                     />
+                   </div>
+                   <div className="modal-footer">
+                     <button type="button" className="btn btn-secondary" onClick={() => setShowManualPaymentModal(false)}>
+                       Cancel
+                     </button>
+                     <button type="submit" className="btn btn-primary" disabled={processPaymentMutation.isPending}>
+                       {processPaymentMutation.isPending ? 'Processing...' : 'Pay Now'}
+                     </button>
+                   </div>
+                 </form>
+               </div>
+             </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Add Funds Modal */}
+          {showAddFundsModal && (
+            <div className="modal-overlay" onClick={() => setShowAddFundsModal(false)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2>Add Funds to Wallet</h2>
+                  <button className="modal-close" onClick={() => setShowAddFundsModal(false)}>×</button>
+                </div>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (addFundsAmount) {
+                    addFundsMutation.mutate({
+                      amount: parseInt(addFundsAmount)
+                    });
+                  }
+                }}>
+                  <div className="modal-body">
+                    <div className="form-group">
+                      <label>Amount to Add (₹)</label>
+                      <input
+                        type="number"
+                        value={addFundsAmount}
+                        onChange={(e) => setAddFundsAmount(e.target.value)}
+                        placeholder="Enter amount"
+                        min="1"
+                        max="100000"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddFundsModal(false)}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="btn btn-primary" disabled={addFundsMutation.isPending}>
+                      {addFundsMutation.isPending ? 'Adding Funds...' : 'Add Funds'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
     </>
   );
